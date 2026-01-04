@@ -2,10 +2,8 @@
 __pycache__/
 *.pyc
 
-# Virtual environment
+# Virtualenv
 venv/
-
-# Secrets
 .env
 
 # Database
@@ -13,3 +11,6 @@ venv/
 
 # OS
 .DS_Store
+
+# Logs
+*.log
