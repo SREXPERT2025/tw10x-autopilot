@@ -1,16 +1,18 @@
-# Python
-__pycache__/
-*.pyc
+# backups
+*.bak
+*.backup
+*.old
+*.tmp
 
-# Virtualenv
-venv/
-.env
+# emergency copies
+index.html.bak_*
+index.v*-*
 
-# Database
-*.db
+# random folders
+1000/
 
-# OS
-.DS_Store
-
-# Logs
-*.log
+# local artifacts
+icon.png
+tonconnect-manifest.json
+terms.html
+privacy.html
