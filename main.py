@@ -2,12 +2,15 @@ import asyncio
 import logging
 import aiosqlite
 import aiohttp
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
+import time
+from datetime import datetime, timedelta
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import Command, CommandStart, CommandObject, ChatMemberUpdatedFilter
 from aiohttp import web
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, ChatJoinRequest
 from tonsdk.utils import Address
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiogram.exceptions import TelegramForbiddenError
 
 from config import (
     BOT_TOKEN,
@@ -17,7 +20,13 @@ from config import (
     API_URL,
 )
 
-# === WEBHOOK CONFIG ===
+# ==========================================
+# 📢 НАСТРОЙКИ КАНАЛОВ
+# ==========================================
+LIVE_CHANNEL_ID = "@tw10x"       
+# ==========================================
+
+# === CONFIG ===
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = "https://tw10x.app/webhook"
 WEB_SERVER_HOST = "127.0.0.1"
@@ -28,23 +37,22 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+CACHE_BALANCE = {"value": 0.0, "time": 0}
+CACHE_TTL = 60 
+
 # ==========================================
-# 🧠 ADDRESS NORMALIZER
+# 🧠 UTILS & DB
 # ==========================================
 def normalize_address(addr_str):
     try:
-        return Address(addr_str).to_string(
-            is_user_friendly=True,
-            is_url_safe=True,
-            is_bounceable=True
-        )
-    except Exception as e:
-        logging.error(f"Address normalize error: {e}")
-        return addr_str
+        return Address(addr_str).to_string(is_user_friendly=True, is_url_safe=True, is_bounceable=True)
+    except Exception:
+        return None
 
-# ==========================================
-# 🗄 DATABASE
-# ==========================================
+def short_addr(addr):
+    if not addr: return "Unknown"
+    return f"{addr[:4]}...{addr[-4:]}"
+
 async def init_db():
     async with aiosqlite.connect("lottery.db") as db:
         await db.execute("""
@@ -56,134 +64,272 @@ async def init_db():
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                wallet_address TEXT,
+                referrer_id INTEGER,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         await db.commit()
 
+# --- ЛОГИКА ---
 async def add_ticket(sender, amount, tx_hash):
     sender = normalize_address(sender)
     async with aiosqlite.connect("lottery.db") as db:
         try:
-            await db.execute(
-                "INSERT INTO tickets (sender, amount, tx_hash) VALUES (?, ?, ?)",
-                (sender, amount, tx_hash)
-            )
+            await db.execute("INSERT INTO tickets (sender, amount, tx_hash) VALUES (?, ?, ?)", (sender, amount, tx_hash))
             await db.commit()
             return True
-        except aiosqlite.IntegrityError:
-            return False
+        except aiosqlite.IntegrityError: return False
 
-async def get_stats():
-    async with aiosqlite.connect("lottery.db") as db:
-        rows = await db.execute_fetchall("SELECT sender, amount FROM tickets")
-
-    return {
-        "bank": round(sum(r[1] for r in rows), 2),
-        "tickets": len(rows),
-        "players": len(set(r[0] for r in rows))
-    }
-
-async def get_user_stats(address):
+async def get_user_tickets(address):
     address = normalize_address(address)
-
+    if not address: return {"history": []}
     async with aiosqlite.connect("lottery.db") as db:
-        total = await db.execute_fetchone("SELECT sum(amount) FROM tickets")
-        rows = await db.execute_fetchall(
-            "SELECT amount, tx_hash, timestamp FROM tickets WHERE sender=? ORDER BY id DESC",
-            (address,)
-        )
+        async with db.execute("SELECT amount, tx_hash, timestamp FROM tickets WHERE sender=? ORDER BY id DESC", (address,)) as cursor:
+            rows = await cursor.fetchall()
+    return {"history": [{"amount": r[0], "hash": r[1][:8]+"...", "time": r[2]} for r in rows]}
 
-    bank = total[0] or 0
-    user_sum = sum(r[0] for r in rows)
+async def set_user_wallet(user_id, wallet_address):
+    clean_addr = normalize_address(wallet_address)
+    if not clean_addr: return False
+    async with aiosqlite.connect("lottery.db") as db:
+        await db.execute("""
+            INSERT INTO users (user_id, wallet_address) VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET wallet_address=excluded.wallet_address
+        """, (user_id, clean_addr))
+        await db.commit()
+    return True
 
-    return {
-        "address": address,
-        "total_invested": round(user_sum, 2),
-        "ticket_count": len(rows),
-        "chance": round((user_sum / bank * 100) if bank else 0, 2),
-        "history": [
-            {"amount": r[0], "hash": r[1][:8] + "...", "time": r[2]}
-            for r in rows[:5]
-        ]
-    }
+async def register_referral(user_id, referrer_id):
+    if user_id == referrer_id: return False 
+    async with aiosqlite.connect("lottery.db") as db:
+        async with db.execute("SELECT referrer_id FROM users WHERE user_id = ?", (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row and row[0]: return False 
+        await db.execute("""
+            INSERT INTO users (user_id, referrer_id) VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET referrer_id=excluded.referrer_id
+        """, (user_id, referrer_id))
+        await db.commit()
+        return True
+
+async def get_referrer_wallet(user_id):
+    async with aiosqlite.connect("lottery.db") as db:
+        async with db.execute("SELECT referrer_id FROM users WHERE user_id = ?", (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row or not row[0]: return None
+            referrer_id = row[0]
+        async with db.execute("SELECT wallet_address FROM users WHERE user_id = ?", (referrer_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row and row[0]: return row[0]
+    return None
+
+async def get_ref_stats(user_id):
+    async with aiosqlite.connect("lottery.db") as db:
+        async with db.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (user_id,)) as cursor:
+            count = (await cursor.fetchone())[0]
+    earnings = count * 0.5
+    return {"invited": count, "earned": earnings}
+
+# 🔥 ПРОВЕРКА НА БИЛЕТ
+async def has_active_ticket(user_id):
+    async with aiosqlite.connect("lottery.db") as db:
+        async with db.execute("SELECT wallet_address FROM users WHERE user_id = ?", (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row or not row[0]: return False 
+            wallet = row[0]
+        async with db.execute("SELECT COUNT(*) FROM tickets WHERE sender = ?", (wallet,)) as cursor:
+            count = (await cursor.fetchone())[0]
+            return count > 0
 
 # ==========================================
-# 🌐 HTTP HANDLERS
+# 🔁 SCANNER
 # ==========================================
-async def handle_index(request):
-    return web.FileResponse("./webapp/index.html")
+async def get_contract_balance():
+    if time.time() - CACHE_BALANCE["time"] < CACHE_TTL: return CACHE_BALANCE["value"]
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"https://toncenter.com/api/v2/getAddressBalance?address={CONTRACT_ADDRESS}&api_key={TONCENTER_API_KEY}"
+            async with session.get(url) as r:
+                data = await r.json()
+                if data["ok"]:
+                    val = int(data["result"]) / 1e9
+                    CACHE_BALANCE["value"] = val
+                    CACHE_BALANCE["time"] = time.time()
+                    return val
+    except Exception: pass
+    return CACHE_BALANCE["value"]
 
-async def handle_status(request):
-    return web.json_response(await get_stats())
+def get_next_round_end():
+    now = datetime.utcnow()
+    days_ahead = 6 - now.weekday()
+    if days_ahead < 0: days_ahead += 7
+    target = now + timedelta(days=days_ahead)
+    target = target.replace(hour=15, minute=0, second=0, microsecond=0)
+    if target < now: target += timedelta(days=7)
+    return int(target.timestamp())
 
-async def handle_user(request):
-    addr = request.query.get("address")
-    if not addr:
-        return web.json_response({"error": "address required"}, status=400)
-    return web.json_response(await get_user_stats(addr))
+async def send_to_channel(sender, amount, tx_hash):
+    current_jackpot = await get_contract_balance()
+    text = (
+        f"🎟 <b>Новый участник!</b>\n\n"
+        f"👤 <code>{short_addr(sender)}</code>\n"
+        f"💰 Вход: <b>{amount} TON</b>\n"
+        f"🏦 <b>Банк игры: {current_jackpot:.1f} TON</b>\n\n"
+        f"🔗 <a href='https://tonviewer.com/transaction/{tx_hash}'>Explorer</a>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🎰 Участвовать", url="https://t.me/tw10x_official_bot")]])
+    try: await bot.send_message(chat_id=LIVE_CHANNEL_ID, text=text, parse_mode="HTML", reply_markup=kb, disable_web_page_preview=True)
+    except Exception: pass
 
-# ==========================================
-# 🔁 TON MONITOR (BACKGROUND)
-# ==========================================
 async def check_deposits():
-    params = {"address": CONTRACT_ADDRESS, "limit": 50, "archival": "true"}
-    if TONCENTER_API_KEY:
-        params["api_key"] = TONCENTER_API_KEY
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(API_URL, params=params) as r:
-            data = await r.json()
-            if not data.get("ok"):
-                return
-
-            for tx in reversed(data["result"]):
-                msg = tx.get("in_msg")
-                if not msg:
-                    continue
-
-                value = int(msg.get("value", 0))
-                source = msg.get("source")
-                tx_hash = tx["transaction_id"]["hash"]
-
-                if value >= 5_000_000_000 and source:
-                    ton = value / 1_000_000_000
-                    if await add_ticket(source, ton, tx_hash):
-                        await bot.send_message(
-                            ADMIN_ID,
-                            f"💰 <b>+{ton} TON</b>\n🎫 Билет куплен!",
-                            parse_mode="HTML"
-                        )
+    params = {"address": CONTRACT_ADDRESS, "limit": 20, "archival": "true"}
+    if TONCENTER_API_KEY: params["api_key"] = TONCENTER_API_KEY
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(API_URL, params=params) as r:
+                data = await r.json()
+                if not data.get("ok"): return
+                for tx in reversed(data["result"]):
+                    in_msg = tx.get("in_msg")
+                    if not in_msg: continue
+                    value = int(in_msg.get("value", 0))
+                    source = in_msg.get("source")
+                    tx_hash = tx["transaction_id"]["hash"]
+                    if value >= 4_000_000_000 and source:
+                        ton_amount = value / 1_000_000_000
+                        if await add_ticket(source, ton_amount, tx_hash):
+                            logging.info(f"🎟 Ticket: {ton_amount} TON from {source}")
+                            CACHE_BALANCE["time"] = 0 
+                            await send_to_channel(source, ton_amount, tx_hash)
+    except Exception: pass
 
 async def scheduler():
-    logging.info("⏳ Scheduler started")
     while True:
+        await check_deposits()
+        await asyncio.sleep(15)
+
+# ==========================================
+# 🌐 API HANDLERS
+# ==========================================
+async def handle_index(request): return web.FileResponse("./webapp/index.html")
+
+async def handle_save_wallet(request):
+    try:
+        data = await request.json()
+        await set_user_wallet(int(data.get("user_id")), data.get("wallet"))
+        return web.json_response({"status": "ok"})
+    except: return web.json_response({"error": "err"}, status=400)
+
+async def handle_get_referrer(request):
+    uid = request.query.get("user_id")
+    if not uid: return web.json_response({})
+    return web.json_response({"ref_wallet": await get_referrer_wallet(int(uid))})
+
+async def handle_user_stats(request):
+    addr = request.query.get("address")
+    if not addr: return web.json_response({"history": []})
+    return web.json_response(await get_user_tickets(addr))
+
+async def handle_global_stats(request):
+    balance = await get_contract_balance()
+    async with aiosqlite.connect("lottery.db") as db:
+        async with db.execute("SELECT COUNT(*) FROM tickets") as c: total_tickets = (await c.fetchone())[0]
+        async with db.execute("SELECT COUNT(*) FROM users") as c: total_users = (await c.fetchone())[0]
+    return web.json_response({
+        "jackpot": balance, "round_end": get_next_round_end(), "total_tickets": total_tickets, "total_users": total_users
+    })
+
+async def handle_ref_stats(request):
+    uid = request.query.get("user_id")
+    if not uid: return web.json_response({"invited": 0, "earned": 0})
+    return web.json_response(await get_ref_stats(int(uid)))
+
+# ==========================================
+# 🛡️ CHAT JOIN REQUEST (VIP GATING)
+# ==========================================
+@dp.chat_join_request()
+async def join_request_handler(update: ChatJoinRequest, bot: Bot):
+    user_id = update.from_user.id
+    logging.info(f"🚪 Join Request from {user_id}")
+    
+    if await has_active_ticket(user_id):
         try:
-            await check_deposits()
-        except Exception as e:
-            logging.error(e)
-        await asyncio.sleep(30)
+            await update.approve()
+            await bot.send_message(user_id, "✅ <b>Доступ в VIP-клуб открыт!</b>\nДобро пожаловать в элиту.", parse_mode="HTML")
+            logging.info(f"✅ Approved {user_id}")
+        except Exception as e: logging.error(f"Approve Error: {e}")
+    else:
+        try:
+            await update.decline()
+            kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🎟 Купить билет", web_app=WebAppInfo(url="https://tw10x.app"))]])
+            await bot.send_message(user_id, "⛔️ <b>Доступ только для игроков!</b>\n\nВ этом раунде у тебя нет билета.\nКупи билет, чтобы попасть в закрытый чат.", parse_mode="HTML", reply_markup=kb)
+            logging.info(f"⛔️ Declined {user_id}")
+        except Exception as e: logging.error(f"Decline Error: {e}")
 
 # ==========================================
-# 🤖 BOT COMMANDS
+# 👮‍♂️ COMMANDS
 # ==========================================
-@dp.message(Command("start"))
-async def start_cmd(message: types.Message):
+@dp.message(Command("id"))
+async def get_id_cmd(message: types.Message):
+    await message.answer(f"🆔 Chat ID: `{message.chat.id}`", parse_mode="Markdown")
+
+@dp.message(Command("stats"))
+async def admin_stats(message: types.Message):
+    if message.from_user.id != int(ADMIN_ID): return
+    bal = await get_contract_balance()
+    await message.answer(f"📊 <b>ADMIN STATS</b>\n💰 Balance: {bal} TON", parse_mode="HTML")
+
+@dp.message(Command("broadcast"))
+async def broadcast_cmd(message: types.Message, command: CommandObject):
+    if message.from_user.id != int(ADMIN_ID): return
+    if not command.args: return
+    text = command.args
+    async with aiosqlite.connect("lottery.db") as db:
+        async with db.execute("SELECT user_id FROM users") as cursor: users = await cursor.fetchall()
+    count = 0
+    for row in users:
+        try:
+            await bot.send_message(chat_id=row[0], text=text, parse_mode="HTML")
+            count += 1
+            await asyncio.sleep(0.05)
+        except: pass
+    await message.answer(f"✅ Sent to {count} users")
+
+@dp.message(CommandStart())
+async def start_cmd(message: types.Message, command: CommandObject):
+    user_id = message.from_user.id
+    args = command.args
+    if args and args.startswith("ref_"):
+        try:
+            referrer_id = int(args.split("_")[1])
+            await register_referral(user_id, referrer_id)
+        except: pass
+
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="🎰 ИГРАТЬ",
-            web_app=WebAppInfo(url="https://tw10x.app")
-        )]
+        [InlineKeyboardButton(text="🎰 ИГРАТЬ (Mini App)", web_app=WebAppInfo(url="https://tw10x.app"))]
     ])
-    await message.answer("Добро пожаловать в TW10X", reply_markup=kb)
+    await message.answer(
+        "👋 <b>TW10X Game</b>\n\n"
+        "Участвуй & Побеждай!\n"
+        "Живой лог: " + LIVE_CHANNEL_ID + "\n\n"
+        "Жми кнопку ниже, чтобы начать.", 
+        reply_markup=kb, parse_mode="HTML"
+    )
 
-# ==========================================
-# 🚀 MAIN (WEBHOOK MODE)
-# ==========================================
 async def main():
     await init_db()
-
     app = web.Application()
     app.router.add_get("/", handle_index)
-    app.router.add_get("/api/status", handle_status)
-    app.router.add_get("/api/user", handle_user)
+    app.router.add_post("/api/save_wallet", handle_save_wallet)
+    app.router.add_get("/api/referrer", handle_get_referrer)
+    app.router.add_get("/api/user", handle_user_stats)
+    app.router.add_get("/api/global_stats", handle_global_stats)
+    app.router.add_get("/api/ref_stats", handle_ref_stats)
+    app.router.add_static("/webapp", path="./webapp")
 
     handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
     handler.register(app, path=WEBHOOK_PATH)
@@ -193,14 +339,20 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, WEB_SERVER_HOST, WEB_SERVER_PORT)
     await site.start()
-
-    await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
-
+    
+    # 🔥 ЖЕСТКИЙ СБРОС ВЕБХУКА
+    await bot.delete_webhook() 
+    logging.info("♻️ Webhook Reset Performed")
+    
+    await bot.set_webhook(
+        WEBHOOK_URL, 
+        drop_pending_updates=True, 
+        allowed_updates=["message", "chat_join_request", "callback_query"]
+    )
+    
     asyncio.create_task(scheduler())
-
-    logging.info("🚀 BOT STARTED IN WEBHOOK MODE")
-
-    await asyncio.Event().wait()  # держим процесс живым
+    logging.info(f"🚀 SYSTEM ONLINE v2.4 (Reset). Live Channel: {LIVE_CHANNEL_ID}")
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())

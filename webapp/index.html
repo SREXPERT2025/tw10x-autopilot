@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TW10X Lottery</title>
+    <title>TW10X Game</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
@@ -23,9 +23,14 @@
         .header { text-align: center; margin-bottom: 20px; }
         h1 { margin: 0; font-size: 28px; letter-spacing: 1px; }
         .subtitle { color: var(--text-sec); font-size: 14px; margin-top: 5px; }
+        
+        /* CARDS & STATS */
         .card { background: var(--card-bg); border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         .stat-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px; }
         .stat-val { font-weight: bold; }
+        .big-val { font-size: 24px; color: var(--main-color); font-weight: 800; display: block; margin-top: 5px; }
+        .timer { font-family: monospace; font-size: 20px; color: #ff9800; font-weight: bold; }
+        
         .btn {
             background: var(--main-color); color: white; border: none; padding: 16px;
             border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer;
@@ -34,11 +39,13 @@
         .btn:active { transform: scale(0.98); }
         .btn:disabled { opacity: 0.5; background: #555; cursor: not-allowed; }
         .btn-outline { background: transparent; border: 2px solid var(--main-color); color: var(--main-color); margin-top: 10px; }
+        
         .ref-box {
             background: #111; padding: 12px; border-radius: 8px; margin: 15px 0; border: 1px solid #444;
             white-space: nowrap; overflow-x: auto; overflow-y: hidden; text-align: left;
         }
         code { font-family: 'Courier New', monospace; font-size: 14px; color: #4facfe; }
+        
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: var(--card-bg); border-top: 1px solid #333;
@@ -48,39 +55,74 @@
         .nav-item { color: var(--text-sec); text-align: center; font-size: 12px; cursor: pointer; flex: 1; }
         .nav-item.active { color: var(--main-color); font-weight: bold; }
         .nav-icon { font-size: 24px; display: block; margin-bottom: 4px; }
+        
         .ticket-item { border-bottom: 1px solid #444; padding: 10px 0; display: flex; justify-content: space-between; }
-        .ticket-item:last-child { border: none; }
-        .hash { font-family: monospace; color: var(--main-color); }
         #ton-connect { display: flex; justify-content: center; margin-bottom: 20px; }
         .status { text-align: center; margin-top: 15px; font-size: 14px; color: #4caf50; min-height: 20px;}
-        .error { color: #ff5252; }
+        
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); }
+        .modal-content { background-color: var(--card-bg); margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; border-radius: 12px; max-height: 60vh; overflow-y: auto;}
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;}
+        .legal-link { text-align: center; margin-top: 20px; font-size: 12px; color: #555; cursor: pointer; text-decoration: underline; }
     </style>
 </head>
 <body>
 
+    <!-- GAME TAB -->
     <div id="tab-game" class="content">
         <div class="header">
-            <h1>🎰 TW10X</h1>
-            <div class="subtitle">Jackpot Lottery on TON</div>
+            <h1>🎰 TW10X Game</h1>
+            <div class="subtitle">On-chain Prize Pool on TON</div>
         </div>
+
+        <!-- NEW: LIVE STATS CARD -->
+        <div class="card" style="text-align: center;">
+            <div style="font-size:14px; color:#aaa;">🏆 ТЕКУЩИЙ БАНК</div>
+            <div id="jackpot-display" class="big-val">Loading...</div>
+            <div style="margin-top:15px; font-size:14px; color:#aaa;">⏳ ДО РОЗЫГРЫША</div>
+            <div id="timer-display" class="timer">--:--:--</div>
+            
+            <div style="display:flex; justify-content:space-between; margin-top:15px; font-size:12px; color:#777; border-top:1px solid #444; padding-top:10px;">
+                <span id="total-users-display">Players: ...</span>
+                <span id="total-tickets-display">Tickets: ...</span>
+            </div>
+        </div>
+
         <div class="card">
             <div id="ton-connect"></div>
-            <div class="stat-row"><span>💰 Цена билета:</span><span class="stat-val">5 TON</span></div>
-            <div class="stat-row"><span>🏆 Выигрыш:</span><span class="stat-val">50% Банка</span></div>
+            <div class="stat-row"><span>💰 Вход:</span><span class="stat-val">5 TON</span></div>
         </div>
+
         <button id="buyBtn" class="btn" disabled>⏳ Загрузка...</button>
         <div id="status" class="status"></div>
+        <div class="legal-link" onclick="openModal()">📜 Правила & Disclaimer</div>
     </div>
 
+    <!-- TICKETS TAB -->
     <div id="tab-tickets" class="content hidden">
-        <div class="header"><h1>🎟 Мои Билеты</h1></div>
+        <div class="header"><h1>🎟 Мои Участия</h1></div>
+        
+        <!-- NEW: WIN CHANCE -->
+        <div class="card">
+             <div class="stat-row"><span>🎯 Твой шанс:</span><span class="stat-val" id="win-chance-display">0%</span></div>
+             <div style="font-size:12px; color:#777; margin-top:5px;">Чем больше билетов, тем выше шанс.</div>
+        </div>
+
         <div id="tickets-list" class="card"><p style="text-align:center">Загрузка...</p></div>
     </div>
 
+    <!-- REF TAB -->
     <div id="tab-refs" class="content hidden">
-        <div class="header"><h1>🤝 Партнерка</h1></div>
+        <div class="header"><h1>🤝 Партнеры</h1></div>
+        
+        <!-- NEW: REF STATS -->
+        <div class="card">
+            <div class="stat-row"><span>👥 Приглашено:</span><span class="stat-val" id="ref-count-display">0</span></div>
+            <div class="stat-row"><span>💸 Заработано:</span><span class="stat-val" id="ref-earned-display">0 TON</span></div>
+        </div>
+
         <div class="card" style="text-align: center;">
-            <p>Приглашай друзей и получай<br><b>10% (0.5 TON)</b> сразу на кошелек!</p>
+            <p>Получай <b>10% (0.5 TON)</b> сразу на кошелек за каждого друга!</p>
             <div class="ref-box"><code id="ref-link">Загрузка...</code></div>
             <button class="btn btn-outline" onclick="copyRef()">📋 Скопировать ссылку</button>
         </div>
@@ -92,11 +134,19 @@
         <div class="nav-item" onclick="switchTab('refs', this)"><span class="nav-icon">🤝</span>Реф</div>
     </div>
 
+    <div id="myModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>📜 Disclaimer</h3>
+            <p style="font-size:12px; color:#ccc;">1. TW10X — игровая механика (Smart Contract).<br>2. Участие добровольное.<br>3. НЕ инвестиция.<br>4. Играйте ответственно.</p>
+        </div>
+    </div>
+
 <script>
     // ==========================================
-    // ⚙️ НАСТРОЙКИ
+    // ⚙️ НАСТРОЙКИ (АВТОМАТИЧЕСКИ ВСТАВЛЕНЫ)
     // ==========================================
-    const CONTRACT_ADDRESS = "EQCOaDls2_jUvqMOVdShynh4tbjZTwczd1Fj0P0PZpBhgYxd";
+    const CONTRACT_ADDRESS = "EQCOaDls2_jUvqMOVdShynh4tbjZTwczd1Fj0P0PZpBhgYxd"; // ✅ ТВОЙ КОНТРАКТ
     const TICKET_PRICE = "5000000000"; 
     const BOT_USERNAME = "tw10x_official_bot"; 
     // ==========================================
@@ -104,6 +154,13 @@
     const tg = window.Telegram.WebApp;
     tg.expand();
     const userId = tg.initDataUnsafe?.user?.id;
+    let globalTotalTickets = 0;
+    let myTicketsCount = 0;
+
+    // --- UX LOGIC ---
+    function openModal() { document.getElementById("myModal").style.display = "block"; }
+    function closeModal() { document.getElementById("myModal").style.display = "none"; }
+    window.onclick = function(event) { if (event.target == document.getElementById("myModal")) closeModal(); }
 
     function switchTab(tabName, el) {
         document.querySelectorAll('.content').forEach(d => d.classList.add('hidden'));
@@ -111,11 +168,11 @@
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         if(el) el.classList.add('active');
         if (tabName === 'tickets') loadTickets();
-        if (tabName === 'refs') loadRefInfo();
+        if (tabName === 'refs') { loadRefInfo(); loadRefStats(); }
     }
 
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-        manifestUrl: 'https://tw10x.app/webapp/tonconnect-manifest.json',
+        manifestUrl: 'https://tw10x.app/tonconnect-manifest.json',
         buttonRootId: 'ton-connect'
     });
 
@@ -123,9 +180,11 @@
 
     window.onload = () => {
         if (window.TonWeb) {
-            document.getElementById('buyBtn').innerText = "🎟 КУПИТЬ БИЛЕТ (5 TON)";
-        } else setStatus("Ошибка библиотек", "error");
+            document.getElementById('buyBtn').innerText = "🎟 ВОЙТИ В ИГРУ (5 TON)";
+        }
+        loadGlobalStats();
         loadRefInfo();
+        setInterval(updateTimer, 1000); // Start Timer
     };
 
     tonConnectUI.onStatusChange(wallet => {
@@ -145,13 +204,63 @@
         }
     });
 
-    // 🔥 ИСПРАВЛЕННАЯ ЛОГИКА ПОКУПКИ (Binary Payload)
+    // --- NEW: STATS LOADERS ---
+    let roundEndTime = 0;
+
+    async function loadGlobalStats() {
+        try {
+            const res = await fetch('/api/global_stats');
+            const data = await res.json();
+            
+            // Update Jackpot
+            document.getElementById('jackpot-display').innerText = data.jackpot.toFixed(1) + " TON";
+            
+            // Update Timer Target
+            roundEndTime = data.round_end;
+            
+            // Update Counts
+            document.getElementById('total-users-display').innerText = "Players: " + data.total_users;
+            document.getElementById('total-tickets-display').innerText = "Tickets: " + data.total_tickets;
+            globalTotalTickets = data.total_tickets;
+        } catch (e) { console.error(e); }
+    }
+
+    function updateTimer() {
+        if (!roundEndTime) return;
+        const now = Math.floor(Date.now() / 1000);
+        const diff = roundEndTime - now;
+        
+        if (diff <= 0) {
+            document.getElementById('timer-display').innerText = "ROUND ENDING...";
+            return;
+        }
+        
+        const days = Math.floor(diff / 86400);
+        const hours = Math.floor((diff % 86400) / 3600);
+        const minutes = Math.floor((diff % 3600) / 60);
+        const seconds = diff % 60;
+        
+        let str = "";
+        if (days > 0) str += days + "d ";
+        str += [hours, minutes, seconds].map(v => v < 10 ? "0" + v : v).join(":");
+        document.getElementById('timer-display').innerText = str;
+    }
+
+    async function loadRefStats() {
+        if (!userId) return;
+        try {
+            const res = await fetch(`/api/ref_stats?user_id=${userId}`);
+            const data = await res.json();
+            document.getElementById('ref-count-display').innerText = data.invited;
+            document.getElementById('ref-earned-display').innerText = data.earned.toFixed(1) + " TON";
+        } catch (e) {}
+    }
+
+    // --- EXISTING LOGIC ---
     document.getElementById('buyBtn').addEventListener('click', async () => {
         if (!userWallet) return;
-        setStatus("⏳ Подготовка...", "");
-
+        document.getElementById('status').innerText = "⏳ Подготовка...";
         try {
-            // 1. Получаем реферера (строку "EQ...")
             let refAddrStr = null;
             if (userId) {
                 try {
@@ -160,37 +269,25 @@
                     if (data.ref_wallet) refAddrStr = data.ref_wallet;
                 } catch (e) {}
             }
-
-            // 2. Формируем Payload (BINARY ADDRESS)
             let payload = null;
             if (refAddrStr) {
                 try {
                     const cell = new TonWeb.boc.Cell();
                     const refAddress = new TonWeb.utils.Address(refAddrStr);
-                    cell.bits.writeAddress(refAddress); // <--- ВОТ ОНО! ЧИСТЫЙ АДРЕС!
+                    cell.bits.writeAddress(refAddress);
                     payload = TonWeb.utils.bytesToBase64(await cell.toBoc());
-                    console.log("Payload created for ref:", refAddrStr);
-                } catch(e) {
-                    console.error("Payload error", e);
-                }
+                } catch(e) {}
             }
-
             const txRequest = {
                 validUntil: Math.floor(Date.now() / 1000) + 600,
-                messages: [{
-                    address: CONTRACT_ADDRESS,
-                    amount: TICKET_PRICE,
-                    payload: payload // Может быть null, если реферала нет
-                }]
+                messages: [{ address: CONTRACT_ADDRESS, amount: TICKET_PRICE, payload: payload }]
             };
-
-            setStatus("📱 Подтвердите в кошельке...", "success");
             await tonConnectUI.sendTransaction(txRequest);
-            setStatus("🚀 Транзакция отправлена!", "success");
-
+            document.getElementById('status').innerText = "🚀 Успешно!";
+            setTimeout(loadGlobalStats, 5000); // Refresh stats after buy
         } catch (e) {
             console.error(e);
-            setStatus(e.message.includes("User rejected") ? "Отмена" : "Ошибка", "error");
+            document.getElementById('status').innerText = "Ошибка или отмена";
         }
     });
 
@@ -201,13 +298,21 @@
             const res = await fetch(`/api/user?address=${userWallet}`);
             const data = await res.json();
             if (!data.history || data.history.length === 0) {
-                list.innerHTML = "<p style='text-align:center'>Билетов пока нет</p>"; return;
+                list.innerHTML = "<p style='text-align:center'>Пока нет участий</p>"; 
+                myTicketsCount = 0;
+            } else {
+                myTicketsCount = data.history.length;
+                let html = "";
+                data.history.forEach(t => {
+                    html += `<div class="ticket-item"><span class="hash">${t.hash}</span><span>${t.amount} TON</span></div>`;
+                });
+                list.innerHTML = html;
             }
-            let html = "";
-            data.history.forEach(t => {
-                html += `<div class="ticket-item"><span class="hash">${t.hash}</span><span>${t.amount} TON</span></div>`;
-            });
-            list.innerHTML = html;
+            // UPDATE WIN CHANCE
+            if (globalTotalTickets > 0) {
+                const chance = (myTicketsCount / globalTotalTickets) * 100;
+                document.getElementById('win-chance-display').innerText = chance.toFixed(2) + "%";
+            }
         } catch (e) { list.innerHTML = "<p style='text-align:center'>Загрузка...</p>"; }
     }
 
@@ -224,13 +329,7 @@
         const text = document.getElementById('ref-link').innerText;
         navigator.clipboard.writeText(text).then(() => {
              tg.showPopup({message: "✅ Ссылка скопирована!", buttons: [{type: "ok"}]});
-        }).catch(() => alert("Скопируйте вручную"));
-    }
-
-    function setStatus(text, cls) {
-        const el = document.getElementById('status');
-        el.innerText = text;
-        el.className = "status " + cls;
+        });
     }
 </script>
 </body>
