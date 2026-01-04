@@ -6,39 +6,48 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiohttp import web
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-from tonsdk.utils import Address 
+from tonsdk.utils import Address
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
-# 👇 ИМПОРТИРУЕМ НАСТРОЙКИ ИЗ config.py
 from config import (
     BOT_TOKEN,
     ADMIN_ID,
     CONTRACT_ADDRESS,
     TONCENTER_API_KEY,
     API_URL,
-    WEB_SERVER_PORT
 )
 
+# === WEBHOOK CONFIG ===
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = "https://tw10x.app/webhook"
+WEB_SERVER_HOST = "127.0.0.1"
+WEB_SERVER_PORT = 8080
+
 logging.basicConfig(level=logging.INFO)
+
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # ==========================================
-# 🧠 УМНЫЙ ПЕРЕВОДЧИК АДРЕСОВ
+# 🧠 ADDRESS NORMALIZER
 # ==========================================
 def normalize_address(addr_str):
-    """Превращает любой формат в единый стандарт EQ..."""
-    try:           
-        return Address(addr_str).to_string(is_user_friendly=True, is_url_safe=True, is_bounceable=True)
+    try:
+        return Address(addr_str).to_string(
+            is_user_friendly=True,
+            is_url_safe=True,
+            is_bounceable=True
+        )
     except Exception as e:
-        logging.error(f"Ошибка нормализации адреса {addr_str}: {e}")
+        logging.error(f"Address normalize error: {e}")
         return addr_str
 
 # ==========================================
-# 🗄 БАЗА ДАННЫХ
+# 🗄 DATABASE
 # ==========================================
 async def init_db():
-    async with aiosqlite.connect('lottery.db') as db:
-        await db.execute('''
+    async with aiosqlite.connect("lottery.db") as db:
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS tickets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sender TEXT,
@@ -46,174 +55,152 @@ async def init_db():
                 tx_hash TEXT UNIQUE,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-        ''')
+        """)
         await db.commit()
 
 async def add_ticket(sender, amount, tx_hash):
-    clean_sender = normalize_address(sender)
-    async with aiosqlite.connect('lottery.db') as db:
+    sender = normalize_address(sender)
+    async with aiosqlite.connect("lottery.db") as db:
         try:
-            await db.execute('INSERT INTO tickets (sender, amount, tx_hash) VALUES (?, ?, ?)', (clean_sender, amount, tx_hash))
+            await db.execute(
+                "INSERT INTO tickets (sender, amount, tx_hash) VALUES (?, ?, ?)",
+                (sender, amount, tx_hash)
+            )
             await db.commit()
             return True
         except aiosqlite.IntegrityError:
             return False
 
 async def get_stats():
-    async with aiosqlite.connect('lottery.db') as db:
-        async with db.execute('SELECT sender, amount FROM tickets') as cursor:
-            tickets = await cursor.fetchall()
-            
-    count = len(tickets)
-    total_bank = sum(t[1] for t in tickets)
-    unique_players = len(set(t[0] for t in tickets))
-    
+    async with aiosqlite.connect("lottery.db") as db:
+        rows = await db.execute_fetchall("SELECT sender, amount FROM tickets")
+
     return {
-        "bank": round(total_bank, 2),
-        "tickets": count,
-        "players": unique_players
+        "bank": round(sum(r[1] for r in rows), 2),
+        "tickets": len(rows),
+        "players": len(set(r[0] for r in rows))
     }
 
-async def get_user_stats(user_address):
-    clean_address = normalize_address(user_address)
-    
-    async with aiosqlite.connect('lottery.db') as db:
-        async with db.execute('SELECT sum(amount) FROM tickets') as cursor:
-            res = await cursor.fetchone()
-            total_bank = res[0] if res and res[0] else 0
+async def get_user_stats(address):
+    address = normalize_address(address)
 
-        async with db.execute('SELECT amount, tx_hash, timestamp FROM tickets WHERE sender = ? ORDER BY id DESC', (clean_address,)) as cursor:
-            tickets = await cursor.fetchall()
+    async with aiosqlite.connect("lottery.db") as db:
+        total = await db.execute_fetchone("SELECT sum(amount) FROM tickets")
+        rows = await db.execute_fetchall(
+            "SELECT amount, tx_hash, timestamp FROM tickets WHERE sender=? ORDER BY id DESC",
+            (address,)
+        )
 
-    user_total = sum(t[0] for t in tickets)
-    count = len(tickets)
-    chance = (user_total / total_bank * 100) if total_bank > 0 else 0
+    bank = total[0] or 0
+    user_sum = sum(r[0] for r in rows)
 
-    return {   
-        "address": clean_address,
-        "total_invested": round(user_total, 2),
-        "ticket_count": count,
-        "chance": round(chance, 2),
+    return {
+        "address": address,
+        "total_invested": round(user_sum, 2),
+        "ticket_count": len(rows),
+        "chance": round((user_sum / bank * 100) if bank else 0, 2),
         "history": [
-            {"amount": t[0], "hash": t[1][:8]+"...", "time": t[2]} 
-            for t in tickets[:5]
+            {"amount": r[0], "hash": r[1][:8] + "...", "time": r[2]}
+            for r in rows[:5]
         ]
     }
 
-async def clear_tickets():
-    async with aiosqlite.connect('lottery.db') as db:
-        await db.execute('DELETE FROM tickets')
-        await db.commit()
-
 # ==========================================
-# 🌐 WEB SERVER (API)
+# 🌐 HTTP HANDLERS
 # ==========================================
-async def handle_status(request):
-    stats = await get_stats()
-    return web.json_response(stats, headers={'Access-Control-Allow-Origin': '*'})
-
 async def handle_index(request):
-    return web.FileResponse('./webapp/index.html')
+    return web.FileResponse("./webapp/index.html")
 
-async def handle_user_info(request):
-    address = request.query.get('address')
-    if not address:
-        return web.json_response({"error": "No address"}, status=400)
-    stats = await get_user_stats(address)
-    return web.json_response(stats, headers={'Access-Control-Allow-Origin': '*'})
+async def handle_status(request):
+    return web.json_response(await get_stats())
+
+async def handle_user(request):
+    addr = request.query.get("address")
+    if not addr:
+        return web.json_response({"error": "address required"}, status=400)
+    return web.json_response(await get_user_stats(addr))
 
 # ==========================================
-# 🤖 БОТ И МОНИТОРИНГ
+# 🔁 TON MONITOR (BACKGROUND)
 # ==========================================
 async def check_deposits():
-    params = {"address": CONTRACT_ADDRESS, "limit": 100, "archival": "true"}
-    if TONCENTER_API_KEY: params["api_key"] = TONCENTER_API_KEY
+    params = {"address": CONTRACT_ADDRESS, "limit": 50, "archival": "true"}
+    if TONCENTER_API_KEY:
+        params["api_key"] = TONCENTER_API_KEY
 
     async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(API_URL, params=params) as resp:
-                data = await resp.json()
-                if not data.get("ok"): return
+        async with session.get(API_URL, params=params) as r:
+            data = await r.json()
+            if not data.get("ok"):
+                return
 
-                for tx in reversed(data["result"]):
-                    in_msg = tx.get("in_msg")
-                    if not in_msg: continue
-                    
-                    value = int(in_msg.get("value", 0))
-                    source = in_msg.get("source")
-                    tx_hash = tx.get("transaction_id", {}).get("hash")
+            for tx in reversed(data["result"]):
+                msg = tx.get("in_msg")
+                if not msg:
+                    continue
 
-                    if value > 100_000_000 and source: 
-                        amount = value / 1_000_000_000
-                        if await add_ticket(source, amount, tx_hash):
-                            logging.info(f"💰 +{amount} TON от {source}")
-                            await bot.send_message(ADMIN_ID, f"💰 <b>+{amount} TON</b>\n🎫 Билет куплен!", parse_mode="HTML")
-        except Exception as e:
-            logging.error(f"Err: {e}")
+                value = int(msg.get("value", 0))
+                source = msg.get("source")
+                tx_hash = tx["transaction_id"]["hash"]
+
+                if value >= 5_000_000_000 and source:
+                    ton = value / 1_000_000_000
+                    if await add_ticket(source, ton, tx_hash):
+                        await bot.send_message(
+                            ADMIN_ID,
+                            f"💰 <b>+{ton} TON</b>\n🎫 Билет куплен!",
+                            parse_mode="HTML"
+                        )
 
 async def scheduler():
+    logging.info("⏳ Scheduler started")
     while True:
-        await check_deposits()
+        try:
+            await check_deposits()
+        except Exception as e:
+            logging.error(e)
         await asyncio.sleep(30)
 
+# ==========================================
+# 🤖 BOT COMMANDS
+# ==========================================
 @dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    # Тут замени ссылку google.com на https://tw10x.app
+async def start_cmd(message: types.Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎰 ИГРАТЬ (Открыть Лобби)", web_app=WebAppInfo(url="https://tw10x.app"))]
+        [InlineKeyboardButton(
+            text="🎰 ИГРАТЬ",
+            web_app=WebAppInfo(url="https://tw10x.app")
+        )]
     ])
-    await message.answer("👋 Добро пожаловать в TW10X Lottery!", reply_markup=kb)
-
-@dp.message(Command("debug"))
-async def cmd_debug(message: types.Message):
-    if message.from_user.id != ADMIN_ID: return
-    async with aiosqlite.connect('lottery.db') as db:
-        async with db.execute('SELECT sender, amount FROM tickets') as cursor:
-            rows = await cursor.fetchall()
-    
-    if not rows:
-        await message.answer("🤷‍♂️ База пуста")
-        return
-
-    text = "<b>📋 БАЗА ДАННЫХ:</b>\n"
-    for row in rows:
-        text += f"<code>{row[0]}</code> : {row[1]} TON\n"
-    await message.answer(text, parse_mode="HTML")
-
-@dp.message(Command("clear"))
-async def cmd_clear(message: types.Message):
-    if message.from_user.id == ADMIN_ID:
-        await clear_tickets()
-        await message.answer("🧹 База очищена")
+    await message.answer("Добро пожаловать в TW10X", reply_markup=kb)
 
 # ==========================================
-# 🚀 ЗАПУСК
+# 🚀 MAIN (WEBHOOK MODE)
 # ==========================================
 async def main():
     await init_db()
-    
-    # Настраиваем веб-сервер
+
     app = web.Application()
-    app.router.add_get('/', handle_index)
-    app.router.add_get('/api/status', handle_status)
-    app.router.add_get('/api/user', handle_user_info)
-    app.router.add_static('/webapp', path='./webapp')
-    
+    app.router.add_get("/", handle_index)
+    app.router.add_get("/api/status", handle_status)
+    app.router.add_get("/api/user", handle_user)
+
+    handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+    handler.register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+
     runner = web.AppRunner(app)
     await runner.setup()
-    
-    # 🔒 ВОТ ОН, ФИКС БЕЗОПАСНОСТИ ОТ ИВАНА:
-    site = web.TCPSite(runner, '127.0.0.1', 8080)
+    site = web.TCPSite(runner, WEB_SERVER_HOST, WEB_SERVER_PORT)
     await site.start()
-    
-    logging.info(f"🌍 Сервер запущен локально: http://127.0.0.1:8080")
-    
-    # Запускаем фоновые задачи
+
+    await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
+
     asyncio.create_task(scheduler())
-    await dp.start_polling(bot)
+
+    logging.info("🚀 BOT STARTED IN WEBHOOK MODE")
+
+    await asyncio.Event().wait()  # держим процесс живым
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logging.info("Bot stopped!")
+    asyncio.run(main())
