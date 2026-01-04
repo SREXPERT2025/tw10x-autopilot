@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>TW10X Lottery</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    
+    <style>
+        body { background-color: #0f0f0f; color: white; font-family: -apple-system, sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; }
+        
+        .screen { padding: 20px; flex-grow: 1; display: none; flex-direction: column; align-items: center; padding-bottom: 90px; overflow-y: auto; }
+        .screen.active { display: flex; }
+
+        .header { width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .logo { font-weight: bold; font-size: 20px; color: #0088cc; }
+        #ton-connect { margin-left: auto; }
+
+        .card { background: linear-gradient(135deg, #1e1e1e, #2a2a2a); width: 100%; padding: 25px 20px; border-radius: 24px; text-align: center; border: 1px solid #333; margin-bottom: 20px; box-sizing: border-box; }
+        .amount { font-size: 42px; font-weight: 800; color: white; margin: 10px 0; }
+        .currency { font-size: 24px; color: #0088cc; }
+        .label { color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+
+        .main-btn { background: #0088cc; color: white; width: 100%; padding: 18px; border: none; border-radius: 16px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: auto; }
+        .main-btn:disabled { background: #444; color: #888; }
+
+        /* Списки */
+        .list-container { width: 100%; text-align: left; }
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #333; font-size: 14px; }
+        .hash { color: #0088cc; font-family: monospace; font-size: 12px; }
+        .time { color: #555; font-size: 10px; }
+        
+        /* Победитель */
+        .winner-badge { background: #ffcc00; color: black; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; margin-right: 5px; }
+
+        /* Нижнее меню */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%; height: 70px;
+            background: #151515; border-top: 1px solid #333;
+            display: flex; justify-content: space-around; align-items: center;
+            z-index: 100; padding-bottom: 10px;
+        }
+        .nav-item { color: #555; font-size: 12px; display: flex; flex-direction: column; align-items: center; cursor: pointer; width: 33%; }
+        .nav-item.active { color: #0088cc; }
+        .nav-icon { font-size: 24px; margin-bottom: 4px; }
+
+    </style>
+</head>
+<body>
+
+    <!-- === ЭКРАН 1: ЛОББИ === -->
+    <div id="screen-lobby" class="screen active">
+        <div class="header">
+            <div class="logo">TW10X 💎</div>
+            <div id="ton-connect"></div>
+        </div>
+
+        <div class="card">
+            <div class="label">Джекпот</div>
+            <div class="amount"><span id="jackpotAmount">0.0</span> <span class="currency">TON</span></div>
+            <div class="label">⏳ 02:14:55</div>
+        </div>
+
+        <div style="width:100%; display:flex; justify-content:space-between; color:#888; font-size:14px; margin-bottom:20px;">
+            <div>🎟 Билетов: <span id="ticketCount">0</span></div>
+            <div>👥 Игроков: <span id="playerCount">0</span></div>
+        </div>
+
+        <button id="buyBtn" class="main-btn" onclick="sendTransaction()">ПОДКЛЮЧИ КОШЕЛЕК</button>
+        <div style="font-size:10px; color:#555; margin-top:15px; text-align:center;">Шанс выигрыша зависит от суммы депозита</div>
+    </div>
+
+    <!-- === ЭКРАН 2: МОИ БИЛЕТЫ === -->
+    <div id="screen-profile" class="screen">
+        <div class="header"><div class="logo">Мой Кабинет 👤</div></div>
+
+        <div class="card">
+            <div class="label">Мой шанс</div>
+            <div class="amount" style="font-size:36px;"><span id="myChance">0</span>%</div>
+            <div class="label">Вложено: <span id="myInvest">0</span> TON</div>
+        </div>
+
+        <div class="label" style="width:100%; text-align:left; margin-bottom:10px;">История транзакций</div>
+        <div class="list-container" id="myHistory">
+            <div style="text-align:center; color:#555; margin-top:20px;">Загрузка...</div>
+        </div>
+    </div>
+
+    <!-- === ЭКРАН 3: ПОБЕДИТЕЛИ === -->
+    <div id="screen-winners" class="screen">
+        <div class="header"><div class="logo">Зал Славы 🏆</div></div>
+        
+        <div class="label" style="width:100%; text-align:center; margin-bottom:20px;">Прошлые раунды</div>
+
+        <div class="list-container">
+            <!-- Заглушка, пока не было розыгрышей -->
+            <div class="list-item">
+                <div>
+                    <div><span class="winner-badge">#1</span> Скоро розыгрыш</div>
+                    <div class="time">Ожидание...</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="color:#ffcc00; font-weight:bold;">??? TON</div>
+                </div>
+            </div>
+            
+             <div style="text-align:center; color:#555; margin-top:40px; font-size:12px;">
+                Здесь будет список победителей<br>со ссылками на блокчейн.
+            </div>
+        </div>
+    </div>
+
+    <!-- === НИЖНЕЕ МЕНЮ === -->
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="switchTab('lobby')">
+            <div class="nav-icon">🏠</div>
+            <div>Главная</div>
+        </div>
+        <div class="nav-item" onclick="switchTab('profile')">
+            <div class="nav-icon">🎫</div>
+            <div>Билеты</div>
+        </div>
+        <div class="nav-item" onclick="switchTab('winners')">
+            <div class="nav-icon">🏆</div>
+            <div>История</div>
+        </div>
+    </div>
+
+    <script>
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+
+        const CONTRACT_ADDRESS = "EQCOaDls2_jUvqMOVdShynh4tbjZTwczd1Fj0P0PZpBhgYxd"; 
+        let currentWallet = null;
+
+        // TonConnect
+        const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+            manifestUrl: window.location.origin + '/webapp/tonconnect-manifest.json',
+            buttonRootId: 'ton-connect'
+        });
+
+        tonConnectUI.onStatusChange(wallet => {
+            currentWallet = wallet;
+            const btn = document.getElementById('buyBtn');
+            if (wallet) {
+                btn.innerText = "КУПИТЬ БИЛЕТ (5 TON)";
+                btn.disabled = false;
+                btn.style.background = "#0088cc";
+                updateUserData(wallet.account.address);
+            } else {
+                btn.innerText = "ПОДКЛЮЧИ КОШЕЛЕК";
+                btn.disabled = true;
+                btn.style.background = "#444";
+                document.getElementById('myHistory').innerHTML = '<div style="text-align:center; color:#555;">Подключи кошелек</div>';
+            }
+        });
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+
+            document.getElementById('screen-' + tabName).classList.add('active');
+            
+            if(tabName === 'lobby') document.querySelectorAll('.nav-item')[0].classList.add('active');
+            if(tabName === 'profile') {
+                document.querySelectorAll('.nav-item')[1].classList.add('active');
+                if(currentWallet) updateUserData(currentWallet.account.address);
+            }
+            if(tabName === 'winners') document.querySelectorAll('.nav-item')[2].classList.add('active');
+        }
+
+        async function updateLobby() {
+            try {
+                let res = await fetch('/api/status');
+                let data = await res.json();
+                document.getElementById('jackpotAmount').innerText = data.bank;
+                document.getElementById('ticketCount').innerText = data.tickets;
+                document.getElementById('playerCount').innerText = data.players;
+            } catch (e) { console.error(e); }
+        }
+
+        async function updateUserData(address) {
+            try {
+                let res = await fetch(`/api/user?address=${address}`);
+                let data = await res.json();
+                
+                document.getElementById('myChance').innerText = data.chance;
+                document.getElementById('myInvest').innerText = data.total_invested;
+                
+                let html = '';
+                if(data.history.length === 0) html = '<div style="text-align:center; color:#555;">Пока нет билетов</div>';
+                
+                data.history.forEach(t => {
+                    html += `
+                        <div class="list-item">
+                            <div>
+                                <div class="hash">${t.hash}</div>
+                                <div class="time">${t.time}</div>
+                            </div>
+                            <div style="font-weight:bold;">${t.amount} TON</div>
+                        </div>
+                    `;
+                });
+                document.getElementById('myHistory').innerHTML = html;
+            } catch (e) { console.error(e); }
+        }
+
+        async function sendTransaction() {
+            if(!currentWallet) return;
+            const transaction = {
+                validUntil: Math.floor(Date.now() / 1000) + 60,
+                messages: [{ address: CONTRACT_ADDRESS, amount: "5000000000" }]
+            };
+            try { await tonConnectUI.sendTransaction(transaction); } catch (e) { alert(e); }
+        }
+
+        updateLobby();
+        setInterval(updateLobby, 5000);
+    </script>
+</body>
+</html>
