@@ -14,3 +14,7 @@ venv/
 
 # Logs
 *.log
+
+# python cache
+__pycache__/
+*.pyc
