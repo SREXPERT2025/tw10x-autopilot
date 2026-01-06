@@ -40,15 +40,15 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-CACHE_BALANCE = {"value": 0.0, "time": 0}
+CACHE_BALANCE = {"value": 0.0, "time": 0} 
 CACHE_TTL = 60 
 
-# Кэш для публичных балансов (v3.0)
+# Кэш для публичных балансов (v3.0 PR-3)
 CACHE_BALANCES = {
     "data": {
         "prize": 0, "dev": 0, "treasury": 0, "jackpot": 0, "holder": 0
     },
-    "time": 0
+    "last_update": 0
 }
 
 # ==========================================
@@ -84,8 +84,7 @@ async def init_db():
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # FIX #1: Убрали создание таблицы rounds отсюда.
-        # Она создается строго через миграцию (PR-1).
+        # rounds создается через migrate_v3.py
         await db.commit()
 
 # ==========================================
@@ -100,7 +99,7 @@ async def get_active_round():
 
 async def create_new_round():
     now_ms = int(time.time() * 1000)
-    end_ms = now_ms + (7 * 24 * 3600 * 1000) # 7 дней
+    end_ms = now_ms + (7 * 24 * 3600 * 1000)
     async with aiosqlite.connect("lottery.db") as db:
         await db.execute("INSERT INTO rounds (status, start_ts_ms, end_ts_ms, tickets_count) VALUES (?, ?, ?, ?)", 
                          ('ACTIVE', now_ms, end_ms, 0))
@@ -111,7 +110,6 @@ async def close_round_logic(round_id):
     async with aiosqlite.connect("lottery.db") as db:
         db.row_factory = aiosqlite.Row
         
-        # 1. Получаем билеты раунда, сортируем ДЕТЕРМИНИРОВАННО по tx_hash
         async with db.execute("SELECT * FROM tickets WHERE round_id=? ORDER BY tx_hash ASC", (round_id,)) as cursor:
             tickets = await cursor.fetchall()
             
@@ -122,18 +120,14 @@ async def close_round_logic(round_id):
             await create_new_round()
             return
 
-        # 2. SEED GENERATION (Variant A: Lexicographically last tx_hash)
-        # FIX #2: Исправлен комментарий. Мы берем последний элемент ПОСЛЕ сортировки по хешу.
-        # Это обеспечивает детерминизм (всегда один результат на тех же данных).
+        # Variant A: Lexicographically last tx_hash
         seed_source = tickets[-1]['tx_hash'] 
         seed_hash = hashlib.sha256(seed_source.encode()).hexdigest()
         
-        # 3. WINNER SELECTION
         tickets_count = len(tickets)
         winner_index = int(seed_hash, 16) % tickets_count
         winner = tickets[winner_index]
         
-        # 4. FIXATE PRIZE
         try:
             url = f"https://toncenter.com/api/v2/getAddressBalance?address={CONTRACT_ADDRESS}&api_key={TONCENTER_API_KEY}"
             async with aiohttp.ClientSession() as sess:
@@ -142,7 +136,6 @@ async def close_round_logic(round_id):
                     prize_pool = int(d["result"]) / 1e9 if d.get("ok") else 0
         except: prize_pool = 0
 
-        # 5. UPDATE DB
         await db.execute("""
             UPDATE rounds SET 
                 status='AWAITING_PAYOUT', 
@@ -157,7 +150,6 @@ async def close_round_logic(round_id):
         """, (int(time.time()*1000), tickets_count, seed_source, seed_hash, winner['sender'], winner['tx_hash'], prize_pool, round_id))
         await db.commit()
         
-        # 6. NOTIFY ADMIN
         msg = (
             f"🏁 <b>РАУНД #{round_id} ЗАВЕРШЕН!</b>\n\n"
             f"🎟 Билетов: {tickets_count}\n"
@@ -170,14 +162,12 @@ async def close_round_logic(round_id):
         try: await bot.send_message(ADMIN_ID, msg, parse_mode="HTML")
         except: pass
         
-        # 7. START NEW ROUND
         await create_new_round()
 
-# --- ЛОГИКА (ОБНОВЛЕННАЯ v3.0) ---
+# --- ЛОГИКА ---
 async def add_ticket(sender, amount, tx_hash):
     sender = normalize_address(sender)
     
-    # v3.0: Получаем текущий раунд
     round_data = await get_active_round()
     if not round_data:
         await create_new_round()
@@ -187,15 +177,11 @@ async def add_ticket(sender, amount, tx_hash):
 
     async with aiosqlite.connect("lottery.db") as db:
         try:
-            # v3.0: Пишем round_id
             await db.execute("INSERT INTO tickets (sender, amount, tx_hash, round_id) VALUES (?, ?, ?, ?)", 
                              (sender, amount, tx_hash, current_round_id))
-            
-            # v3.0: Обновляем счетчик
             await db.execute("UPDATE rounds SET tickets_count = tickets_count + 1 WHERE id=?", (current_round_id,))
             await db.commit()
 
-            # v3.0: Проверка лимита (100 билетов)
             if (round_data['tickets_count'] + 1) >= 100:
                 logging.info("🚀 Round Limit Reached (100 tickets). Closing...")
                 asyncio.create_task(close_round_logic(current_round_id))
@@ -207,7 +193,6 @@ async def get_user_tickets(address):
     address = normalize_address(address)
     if not address: return {"history": []}
     async with aiosqlite.connect("lottery.db") as db:
-        # Можно добавить round_id в выдачу, но пока оставляем как есть для совместимости
         async with db.execute("SELECT amount, tx_hash, timestamp FROM tickets WHERE sender=? ORDER BY id DESC", (address,)) as cursor:
             rows = await cursor.fetchall()
     return {"history": [{"amount": r[0], "hash": r[1][:8]+"...", "time": r[2]} for r in rows]}
@@ -254,7 +239,6 @@ async def get_ref_stats(user_id):
     earnings = count * 0.5
     return {"invited": count, "earned": earnings}
 
-# 🔥 ПРОВЕРКА НА БИЛЕТ
 async def has_active_ticket(user_id):
     async with aiosqlite.connect("lottery.db") as db:
         async with db.execute("SELECT wallet_address FROM users WHERE user_id = ?", (user_id,)) as cursor:
@@ -265,75 +249,127 @@ async def has_active_ticket(user_id):
             count = (await cursor.fetchone())[0]
             return count > 0
 
-# 🔥 ФУНКЦИЯ (ТЗ: Аналитика 24h)
 async def get_analytics_24h():
     since_ts = int((time.time() - 24 * 3600) * 1000)
-
     async with aiosqlite.connect("lottery.db") as db:
         db.row_factory = aiosqlite.Row
-
-        rows = await db.execute_fetchall(
-            """
-            SELECT event, COUNT(*) AS cnt
-            FROM analytics_events
-            WHERE ts_ms >= ?
-            GROUP BY event
-            """,
-            (since_ts,)
-        )
-
+        rows = await db.execute_fetchall("SELECT event, COUNT(*) AS cnt FROM analytics_events WHERE ts_ms >= ? GROUP BY event", (since_ts,))
     stats = {r["event"]: r["cnt"] for r in rows}
     def v(key): return stats.get(key, 0)
     opened = max(v("open_rules"), 1)
-
     return {
-        "open": v("open_rules"),
-        "rules": v("open_rules"),
-        "wallet": v("connect_wallet"),
-        "enter": v("enter_game_click"),
-        "success": v("tx_success"),
-        "p_rules": round(v("open_rules") / opened * 100),
-        "p_wallet": round(v("connect_wallet") / opened * 100),
-        "p_enter": round(v("enter_game_click") / opened * 100),
-        "p_success": round(v("tx_success") / opened * 100),
+        "open": v("open_rules"), "rules": v("open_rules"), "wallet": v("connect_wallet"), "enter": v("enter_game_click"), "success": v("tx_success"),
+        "p_rules": round(v("open_rules") / opened * 100), "p_wallet": round(v("connect_wallet") / opened * 100),
+        "p_enter": round(v("enter_game_click") / opened * 100), "p_success": round(v("tx_success") / opened * 100),
     }
 
-# 🔥 НОВАЯ ФУНКЦИЯ (ТЗ: A. Функция агрегации за 7 дней)
 async def get_analytics_7d():
     since_ts = int((time.time() - 7 * 24 * 3600) * 1000)
-
     async with aiosqlite.connect("lottery.db") as db:
         db.row_factory = aiosqlite.Row
-        rows = await db.execute_fetchall(
-            """
-            SELECT event, COUNT(*) AS cnt
-            FROM analytics_events
-            WHERE ts_ms >= ?
-            GROUP BY event
-            """,
-            (since_ts,)
-        )
-
+        rows = await db.execute_fetchall("SELECT event, COUNT(*) AS cnt FROM analytics_events WHERE ts_ms >= ? GROUP BY event", (since_ts,))
     stats = {r["event"]: r["cnt"] for r in rows}
     def v(key): return stats.get(key, 0)
     base = max(v("open_rules"), 1)
-
     return {
-        "open": v("open_rules"),
-        "rules": v("open_rules"),
-        "wallet": v("connect_wallet"),
-        "enter": v("enter_game_click"),
-        "success": v("tx_success"),
-        "p_rules": round(v("open_rules") / base * 100),
-        "p_wallet": round(v("connect_wallet") / base * 100),
-        "p_enter": round(v("enter_game_click") / base * 100),
-        "p_success": round(v("tx_success") / base * 100),
+        "open": v("open_rules"), "rules": v("open_rules"), "wallet": v("connect_wallet"), "enter": v("enter_game_click"), "success": v("tx_success"),
+        "p_rules": round(v("open_rules") / base * 100), "p_wallet": round(v("connect_wallet") / base * 100),
+        "p_enter": round(v("enter_game_click") / base * 100), "p_success": round(v("tx_success") / base * 100),
     }
+
+# ==========================================
+# 📊 API & PUBLIC DATA (PR-3 FIXED)
+# ==========================================
+
+async def public_balances_worker():
+    """Фоновый воркер для обновления балансов раз в 60 сек"""
+    while True:
+        try:
+            # Словарь для итерации и проверок
+            targets = {
+                "prize": CONTRACT_ADDRESS,
+                "dev": WALLET_DEV,
+                "treasury": WALLET_TREASURY,
+                "jackpot": WALLET_JACKPOT,
+                "holder": WALLET_HOLDER_DROP
+            }
+            
+            async with aiohttp.ClientSession() as sess:
+                for key, addr in targets.items():
+                    # FIX #2: Проверка на None/Empty
+                    if not addr:
+                        logging.warning(f"⚠️ Public API Warning: WALLET_{key.upper()} is missing in env!")
+                        CACHE_BALANCES['data'][key] = 0
+                        continue
+
+                    try:
+                        url = f"https://toncenter.com/api/v2/getAddressBalance?address={addr}&api_key={TONCENTER_API_KEY}"
+                        async with sess.get(url) as r:
+                            d = await r.json()
+                            if d.get("ok"):
+                                CACHE_BALANCES['data'][key] = int(d["result"]) / 1e9
+                            else:
+                                CACHE_BALANCES['data'][key] = 0
+                    except Exception as e:
+                        logging.error(f"Balance fetch error for {key}: {e}")
+            
+            CACHE_BALANCES['last_update'] = time.time()
+            
+        except Exception as e:
+            logging.error(f"Public Balances Worker Crash: {e}")
+        
+        # Ждем 60 секунд перед следующим обновлением
+        await asyncio.sleep(60)
+
+# FIX #1: Убрали вызов update из хендлера
+async def handle_public_overview(request):
+    r = await get_active_round()
+    
+    if not r: 
+        return web.json_response({
+            "round_id": 0,
+            "round_end_ts": int(time.time() + 86400),
+            "tickets_sold": 0,
+            "balances": CACHE_BALANCES['data']
+        })
+
+    return web.json_response({
+        "round_id": r['id'],
+        "round_end_ts": int(r['end_ts_ms'] / 1000),
+        "tickets_sold": r['tickets_count'],
+        "balances": CACHE_BALANCES['data']
+    })
+
+async def handle_public_rounds(request):
+    async with aiosqlite.connect("lottery.db") as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("""
+            SELECT id, closed_ts_ms, winner_wallet, prize_amount_ton, payout_tx_hash, tickets_count 
+            FROM rounds 
+            WHERE status='PAID' 
+            ORDER BY id DESC LIMIT 10
+        """) as c:
+            rows = await c.fetchall()
+            
+    result = []
+    for row in rows:
+        result.append({
+            "id": row['id'],
+            "date": int(row['closed_ts_ms'] / 1000),
+            "winner": short_addr(row['winner_wallet']),
+            "prize": row['prize_amount_ton'],
+            "tx": row['payout_tx_hash'],
+            "tickets": row['tickets_count']
+        })
+        
+    return web.json_response({"rounds": result})
+
 
 # ==========================================
 # 🔁 SCANNER & SCHEDULER
 # ==========================================
 async def get_contract_balance():
+    # Legacy for admin stats
     if time.time() - CACHE_BALANCE["time"] < CACHE_TTL: return CACHE_BALANCE["value"]
     try:
         async with aiohttp.ClientSession() as session:
@@ -349,7 +385,7 @@ async def get_contract_balance():
     return CACHE_BALANCE["value"]
 
 def get_next_round_end():
-    # Legacy function for frontend compatibility
+    # Legacy helper
     now = datetime.utcnow()
     days_ahead = 6 - now.weekday()
     if days_ahead < 0: days_ahead += 7
@@ -396,8 +432,6 @@ async def check_deposits():
 async def scheduler():
     while True:
         await check_deposits()
-        
-        # v3.0: Check Time Limit (7 days)
         try:
             round_data = await get_active_round()
             if round_data:
@@ -433,6 +467,7 @@ async def handle_user_stats(request):
     return web.json_response(await get_user_tickets(addr))
 
 async def handle_global_stats(request):
+    # Legacy endpoint для MiniApp
     balance = await get_contract_balance()
     async with aiosqlite.connect("lottery.db") as db:
         async with db.execute("SELECT COUNT(*) FROM tickets") as c: total_tickets = (await c.fetchone())[0]
@@ -446,14 +481,10 @@ async def handle_ref_stats(request):
     if not uid: return web.json_response({"invited": 0, "earned": 0})
     return web.json_response(await get_ref_stats(int(uid)))
 
-# ==========================================
-# 🛡️ CHAT JOIN REQUEST (VIP GATING)
-# ==========================================
 @dp.chat_join_request()
 async def join_request_handler(update: ChatJoinRequest, bot: Bot):
     user_id = update.from_user.id
     logging.info(f"🚪 Join Request from {user_id}")
-    
     if await has_active_ticket(user_id):
         try:
             await update.approve()
@@ -468,9 +499,6 @@ async def join_request_handler(update: ChatJoinRequest, bot: Bot):
             logging.info(f"⛔️ Declined {user_id}")
         except Exception as e: logging.error(f"Decline Error: {e}")
 
-# ==========================================
-# 👮‍♂️ COMMANDS
-# ==========================================
 @dp.message(Command("id"))
 async def get_id_cmd(message: types.Message):
     await message.answer(f"🆔 Chat ID: `{message.chat.id}`", parse_mode="Markdown")
@@ -481,7 +509,6 @@ async def admin_stats(message: types.Message):
     bal = await get_contract_balance()
     await message.answer(f"📊 <b>ADMIN STATS</b>\n💰 Balance: {bal} TON", parse_mode="HTML")
 
-# 🔥 АДМИН КОМАНДЫ (v3.0)
 @dp.message(Command("payout"))
 async def payout_cmd(message: types.Message, command: CommandObject):
     if message.from_user.id != int(ADMIN_ID): return
@@ -489,26 +516,17 @@ async def payout_cmd(message: types.Message, command: CommandObject):
     if len(args) != 2:
         await message.answer("Usage: `/payout <round_id> <tx_hash>`", parse_mode="Markdown")
         return
-    
     round_id, tx_hash = args[0], args[1]
-    
     async with aiosqlite.connect("lottery.db") as db:
         await db.execute("UPDATE rounds SET status='PAID', payout_tx_hash=? WHERE id=?", (tx_hash, round_id))
         await db.commit()
-    
     await message.answer(f"✅ Round {round_id} marked as PAID.")
 
 @dp.message(Command("round"))
 async def round_info_cmd(message: types.Message):
     r = await get_active_round()
     if not r: await message.answer("No active round."); return
-    
-    await message.answer(
-        f"🟢 <b>Active Round #{r['id']}</b>\n"
-        f"🎟 Tickets: {r['tickets_count']}/100\n"
-        f"⏳ Ends: {datetime.fromtimestamp(r['end_ts_ms']/1000)}",
-        parse_mode="HTML"
-    )
+    await message.answer(f"🟢 <b>Active Round #{r['id']}</b>\n🎟 Tickets: {r['tickets_count']}/100\n⏳ Ends: {datetime.fromtimestamp(r['end_ts_ms']/1000)}", parse_mode="HTML")
 
 @dp.message(Command("analytics"))
 async def analytics_cmd(message: types.Message):
@@ -553,32 +571,26 @@ async def start_cmd(message: types.Message, command: CommandObject):
             referrer_id = int(args.split("_")[1])
             await register_referral(user_id, referrer_id)
         except: pass
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎰 ИГРАТЬ (Mini App)", web_app=WebAppInfo(url="https://tw10x.app"))]
-    ])
-    await message.answer(
-        "👋 <b>TW10X Game</b>\n\n"
-        "Участвуй & Побеждай!\n"
-        "Живой лог: " + LIVE_CHANNEL_ID + "\n\n"
-        "Жми кнопку ниже, чтобы начать.", 
-        reply_markup=kb, parse_mode="HTML"
-    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🎰 ИГРАТЬ (Mini App)", web_app=WebAppInfo(url="https://tw10x.app/game.html"))]])
+    await message.answer("👋 <b>TW10X Game</b>\n\nУчаствуй & Побеждай!\nЖивой лог: " + LIVE_CHANNEL_ID + "\n\nЖми кнопку ниже, чтобы начать.", reply_markup=kb, parse_mode="HTML")
 
 async def main():
     await init_db()
-    # ✅ ШАГ 3 (ТЗ): Инициализация БД аналитики
     await init_analytics_db()
     
     app = web.Application()
+    
+    # 🟢 PR-3 API
+    app.router.add_get("/api/public/overview", handle_public_overview)
+    app.router.add_get("/api/public/rounds", handle_public_rounds)
+
+    # Legacy & Pages
     app.router.add_get("/", handle_index)
     app.router.add_post("/api/save_wallet", handle_save_wallet)
     app.router.add_get("/api/referrer", handle_get_referrer)
     app.router.add_get("/api/user", handle_user_stats)
     app.router.add_get("/api/global_stats", handle_global_stats)
     app.router.add_get("/api/ref_stats", handle_ref_stats)
-    
-    # ✅ ШАГ 4 (ТЗ): Роуты аналитики
     app.router.add_post("/api/analytics", handle_analytics)
     app.router.add_get("/api/analytics_funnel", handle_analytics_funnel)
     
@@ -593,18 +605,14 @@ async def main():
     site = web.TCPSite(runner, WEB_SERVER_HOST, WEB_SERVER_PORT)
     await site.start()
     
-    # 🔥 ЖЕСТКИЙ СБРОС ВЕБХУКА
     await bot.delete_webhook() 
-    logging.info("♻️ Webhook Reset Performed")
-    
-    await bot.set_webhook(
-        WEBHOOK_URL, 
-        drop_pending_updates=True, 
-        allowed_updates=["message", "chat_join_request", "callback_query"]
-    )
+    await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True, allowed_updates=["message", "chat_join_request", "callback_query"])
     
     asyncio.create_task(scheduler())
-    logging.info(f"🚀 SYSTEM ONLINE v2.4 (Reset). Live Channel: {LIVE_CHANNEL_ID}")
+    # FIX: Запускаем воркер балансов фоном
+    asyncio.create_task(public_balances_worker())
+    
+    logging.info(f"🚀 SYSTEM ONLINE v3.0 (Public API + Worker). Live Channel: {LIVE_CHANNEL_ID}")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
