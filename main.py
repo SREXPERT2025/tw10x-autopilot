@@ -586,6 +586,7 @@ async def main():
 
     # Legacy & Pages
     app.router.add_get("/", handle_index)
+    app.router.add_get("/game.html", lambda r: web.FileResponse("./webapp/game.html"))
     app.router.add_post("/api/save_wallet", handle_save_wallet)
     app.router.add_get("/api/referrer", handle_get_referrer)
     app.router.add_get("/api/user", handle_user_stats)

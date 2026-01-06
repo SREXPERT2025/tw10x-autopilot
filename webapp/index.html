@@ -1,1003 +1,224 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>TW10X Game</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TW10X - TON Lottery</title>
+    <style>
+        :root { --main: #0098EA; --bg: #050505; --card: #111; --text: #eee; --gray: #666; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; line-height: 1.5; }
+        a { text-decoration: none; color: inherit; transition: 0.2s; }
+        
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; }
+        .logo { font-weight: 900; font-size: 24px; letter-spacing: -1px; background: linear-gradient(45deg, #0098EA, #00F0FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .hero { text-align: center; padding: 60px 0; }
+        h1 { font-size: 42px; margin: 0 0 10px 0; font-weight: 800; }
+        .subtitle { color: var(--gray); font-size: 18px; margin-bottom: 40px; }
+        
+        .prize-card { background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%); border: 1px solid #333; border-radius: 24px; padding: 40px; margin: 0 auto; max-width: 400px; box-shadow: 0 10px 40px rgba(0, 152, 234, 0.1); }
+        .prize-label { color: var(--main); text-transform: uppercase; font-size: 12px; font-weight: bold; letter-spacing: 2px; }
+        .prize-amount { font-size: 56px; font-weight: 800; margin: 10px 0; line-height: 1; }
+        .timer { color: var(--gray); font-variant-numeric: tabular-nums; font-size: 16px; margin-top: 10px; }
+        
+        .btn-play { display: inline-block; background: var(--main); color: #fff; font-weight: bold; padding: 18px 40px; border-radius: 100px; font-size: 18px; margin-top: 30px; box-shadow: 0 4px 20px rgba(0, 152, 234, 0.4); transform: translateY(0); }
+        .btn-play:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(0, 152, 234, 0.6); }
 
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
-<script src="https://unpkg.com/tonweb@0.0.66/dist/tonweb.js"></script>
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-top: 60px; }
+        .stat-card { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid #222; text-align: center; }
+        .stat-val { font-size: 20px; font-weight: bold; color: #fff; }
+        .stat-lbl { font-size: 11px; color: var(--gray); text-transform: uppercase; letter-spacing: 1px; margin-top: 5px; }
+        
+        .history-section { margin-top: 80px; }
+        h3 { border-bottom: 1px solid #222; padding-bottom: 15px; margin-bottom: 20px; color: var(--gray); font-size: 14px; text-transform: uppercase; }
+        .history-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .history-table th { text-align: left; color: var(--gray); font-weight: normal; padding: 10px; }
+        .history-table td { padding: 15px 10px; border-bottom: 1px solid #1a1a1a; }
+        .history-table tr:last-child td { border: none; }
+        .tx-link { color: var(--main); opacity: 0.7; }
+        .tx-link:hover { opacity: 1; text-decoration: underline; }
 
-<style>
-/* 🎨 THEME & RESET (v2.6 baseline) */
-:root {
---main-color: #0098EA;
---accent-grad: linear-gradient(135deg, #0098EA 0%, #006499 100%);
---bg-color: #000000;
---card-bg: #1c1c1e;
---text-sec: #8e8e93;
---success: #34c759;
---danger: #ff453a;
---warn: #ff9f0a;
---muted-border: rgba(255,255,255,0.08);
---muted-border-2: rgba(255,255,255,0.12);
---modal-overlay: rgba(0,0,0,0.72);
-}
-
-* { box-sizing: border-box; }
-
-body {
-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
-background-color: var(--tg-theme-bg-color, var(--bg-color));
-color: var(--tg-theme-text-color, #ffffff);
-margin: 0;
-padding: 0;
-display: flex;
-flex-direction: column;
-height: 100vh;
--webkit-font-smoothing: antialiased;
-text-rendering: optimizeLegibility;
-}
-
-a { color: #4facfe; text-decoration: none; }
-a:active { opacity: 0.8; }
-
-/* 🧩 LAYOUT */
-.content {
-flex: 1;
-overflow-y: auto;
-padding: 16px;
-padding-bottom: 110px;
-}
-.hidden { display: none !important; }
-
-/* typography */
-.header {
-text-align: center;
-margin-bottom: 24px;
-margin-top: 10px;
-}
-h1 {
-margin: 0;
-font-size: 32px;
-font-weight: 800;
-letter-spacing: -0.5px;
-}
-.subtitle {
-color: var(--text-sec);
-font-size: 13px;
-margin-top: 4px;
-font-weight: 500;
-}
-
-/* 🃏 CARDS */
-.card {
-background: var(--card-bg);
-border-radius: 20px;
-padding: 20px;
-margin-bottom: 16px;
-box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-border: 1px solid rgba(255,255,255,0.05);
-}
-.card.highlight {
-background: radial-gradient(circle at top right, #2a2a2c, #1c1c1e);
-border: 1px solid rgba(0, 152, 234, 0.3);
-box-shadow: 0 0 30px rgba(0, 152, 234, 0.1);
-}
-
-.stat-row {
-display: flex;
-justify-content: space-between;
-align-items: center;
-margin-bottom: 12px;
-font-size: 15px;
-gap: 12px;
-}
-.stat-row:last-child { margin-bottom: 0; }
-
-.stat-val { font-weight: 600; }
-
-.big-val {
-font-size: 42px;
-color: var(--main-color);
-font-weight: 800;
-display: block;
-margin: 10px 0;
-letter-spacing: -1px;
-text-shadow: 0 0 20px rgba(0, 152, 234, 0.25);
-}
-
-.timer {
-font-family: 'SF Mono', 'Courier New', monospace;
-font-size: 16px;
-color: var(--warn);
-font-weight: 600;
-background: rgba(255, 159, 10, 0.10);
-padding: 6px 12px;
-border-radius: 8px;
-display: inline-block;
-border: 1px solid rgba(255, 159, 10, 0.10);
-}
-
-/* 🔘 BUTTONS */
-.btn {
-background: var(--main-color);
-color: white;
-border: none;
-padding: 18px;
-border-radius: 16px;
-font-size: 17px;
-font-weight: 700;
-cursor: pointer;
-width: 100%;
-transition: transform 0.1s, opacity 0.2s;
-display: flex;
-justify-content: center;
-align-items: center;
-box-shadow: 0 8px 25px rgba(0, 152, 234, 0.3);
-}
-.btn:active { transform: scale(0.96); }
-.btn:disabled {
-opacity: 0.6;
-background: #333;
-cursor: not-allowed;
-box-shadow: none;
-}
-.btn-outline {
-background: transparent;
-border: 2px solid rgba(255,255,255,0.10);
-color: var(--main-color);
-box-shadow: none;
-margin-top: 12px;
-}
-.btn-mini {
-display: inline-flex;
-align-items: center;
-justify-content: center;
-gap: 8px;
-border: 1px solid var(--muted-border-2);
-background: rgba(255,255,255,0.04);
-color: #fff;
-padding: 10px 12px;
-border-radius: 12px;
-font-size: 13px;
-font-weight: 600;
-cursor: pointer;
-}
-.btn-mini:active { transform: scale(0.98); }
-
-/* 🦴 SKELETON LOADER */
-.skeleton {
-background: linear-gradient(90deg, #222 25%, #2a2a2a 50%, #222 75%);
-background-size: 200% 100%;
-animation: loading 1.5s infinite;
-color: transparent !important;
-border-radius: 10px;
-}
-@keyframes loading {
-0% { background-position: 200% 0; }
-100% { background-position: -200% 0; }
-}
-
-/* 📱 BOTTOM NAV (Glassmorphism) */
-.bottom-nav {
-position: fixed;
-bottom: 0;
-left: 0;
-width: 100%;
-background: rgba(28, 28, 30, 0.85);
-backdrop-filter: blur(20px);
--webkit-backdrop-filter: blur(20px);
-border-top: 1px solid rgba(255,255,255,0.10);
-display: flex;
-justify-content: space-around;
-padding: 10px 0;
-padding-bottom: max(15px, env(safe-area-inset-bottom));
-z-index: 100;
-}
-.nav-item {
-color: var(--text-sec);
-text-align: center;
-font-size: 10px;
-cursor: pointer;
-flex: 1;
-transition: color 0.2s;
-}
-.nav-item.active {
-color: var(--main-color);
-font-weight: 600;
-}
-.nav-icon {
-font-size: 24px;
-display: block;
-margin-bottom: 4px;
-}
-
-/* MISC */
-.ref-box {
-background: #111;
-padding: 14px;
-border-radius: 12px;
-margin: 15px 0;
-border: 1px solid #333;
-white-space: nowrap;
-overflow-x: auto;
-font-family: 'Courier New', monospace;
-color: #4facfe;
-}
-.ticket-item {
-border-bottom: 1px solid rgba(255,255,255,0.05);
-padding: 14px 0;
-display: flex;
-justify-content: space-between;
-font-size: 14px;
-gap: 12px;
-}
-#ton-connect {
-display: flex;
-justify-content: center;
-margin-bottom: 24px;
-}
-.status {
-text-align: center;
-margin-top: 15px;
-font-size: 13px;
-color: var(--success);
-min-height: 20px;
-font-weight: 500;
-word-break: break-word;
-}
-
-/* ✅ TASK 2.1: IMPROVED UX FOR RULES LINK */
-.legal-link {
-text-align: center;
-margin-top: 30px; /* Increased from 24px */
-font-size: 14px; /* Increased from 12px */
-color: #4facfe; /* More visible color (was var(--text-sec)) */
-font-weight: 700; /* Bold */
-cursor: pointer;
-opacity: 0.9;
-user-select: none;
-transition: opacity 0.2s;
-}
-.legal-link:active { opacity: 0.7; }
-
-/* ✅ RULES MODAL v2.7 (safe) */
-.modal {
-display: none;
-position: fixed;
-z-index: 1000;
-left: 0; top: 0;
-width: 100%;
-height: 100%;
-background-color: var(--modal-overlay);
-backdrop-filter: blur(6px);
--webkit-backdrop-filter: blur(6px);
-padding: 18px;
-}
-
-.modal-content {
-background: rgba(28, 28, 30, 0.92);
-border: 1px solid rgba(255,255,255,0.10);
-border-radius: 24px;
-width: min(720px, 100%);
-margin: 8vh auto 0 auto;
-padding: 18px 18px 16px 18px;
-box-shadow: 0 18px 60px rgba(0,0,0,0.55);
-max-height: 78vh;
-overflow: hidden;
-}
-
-.modal-head {
-display: flex;
-align-items: center;
-justify-content: space-between;
-gap: 10px;
-padding-bottom: 12px;
-border-bottom: 1px solid rgba(255,255,255,0.08);
-}
-
-.modal-title {
-font-size: 20px;
-font-weight: 800;
-letter-spacing: -0.2px;
-margin: 0;
-}
-
-.modal-close {
-width: 42px;
-height: 42px;
-border-radius: 14px;
-border: 1px solid rgba(255,255,255,0.10);
-background: rgba(255,255,255,0.06);
-color: #fff;
-cursor: pointer;
-font-size: 22px;
-line-height: 1;
-display: inline-flex;
-align-items: center;
-justify-content: center;
-}
-.modal-close:active { transform: scale(0.98); }
-
-.lang-switch {
-display: flex;
-gap: 10px;
-padding-top: 14px;
-padding-bottom: 12px;
-}
-
-.lang-btn {
-flex: 0 0 auto;
-padding: 10px 14px;
-border-radius: 14px;
-border: 1px solid rgba(255,255,255,0.12);
-background: rgba(255,255,255,0.05);
-color: #fff;
-font-weight: 700;
-font-size: 13px;
-cursor: pointer;
-min-width: 64px;
-text-align: center;
-user-select: none;
-}
-
-.lang-btn.active {
-background: rgba(0, 152, 234, 0.22);
-border-color: rgba(0, 152, 234, 0.35);
-color: #fff;
-}
-
-.modal-body {
-overflow-y: auto;
-max-height: calc(78vh - 120px);
-padding-right: 6px;
-}
-.modal-body::-webkit-scrollbar { width: 6px; }
-.modal-body::-webkit-scrollbar-thumb {
-background: rgba(255,255,255,0.15);
-border-radius: 10px;
-}
-
-.rules-card {
-background: rgba(255,255,255,0.04);
-border: 1px solid rgba(255,255,255,0.08);
-border-radius: 18px;
-padding: 14px;
-margin-bottom: 12px;
-}
-.rules-h {
-margin: 0 0 10px 0;
-font-size: 16px;
-font-weight: 800;
-letter-spacing: -0.2px;
-}
-.rules-p {
-margin: 0;
-font-size: 14px;
-line-height: 1.55;
-color: rgba(255,255,255,0.90);
-}
-.rules-ul {
-margin: 8px 0 0 18px;
-padding: 0;
-color: rgba(255,255,255,0.92);
-font-size: 14px;
-line-height: 1.55;
-}
-.rules-kv {
-display: grid;
-grid-template-columns: 1fr;
-gap: 10px;
-margin-top: 10px;
-}
-.kv {
-padding: 12px;
-border-radius: 16px;
-background: rgba(0,0,0,0.25);
-border: 1px solid rgba(255,255,255,0.08);
-}
-.kv .k {
-font-size: 11px;
-letter-spacing: 0.8px;
-text-transform: uppercase;
-color: rgba(255,255,255,0.60);
-margin-bottom: 6px;
-font-weight: 800;
-}
-.kv .v {
-font-size: 13px;
-color: rgba(255,255,255,0.95);
-word-break: break-all;
-font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-.inline-actions {
-display: flex;
-gap: 10px;
-flex-wrap: wrap;
-margin-top: 10px;
-}
-
-.muted {
-color: rgba(255,255,255,0.70);
-font-size: 12px;
-line-height: 1.45;
-}
-</style>
+        footer { margin-top: 80px; border-top: 1px solid #222; padding-top: 40px; text-align: center; color: #444; font-size: 13px; }
+        .socials { margin-bottom: 20px; }
+        .socials a { margin: 0 10px; color: var(--gray); }
+        .socials a:hover { color: #fff; }
+    </style>
 </head>
-
 <body>
-<!-- GAME TAB -->
-<div id="tab-game" class="content">
-<div class="header">
-<h1>TW10X</h1>
-<div class="subtitle">Fair On-Chain Game on TON</div>
-</div>
 
-<!-- STATS CARD -->
-<div class="card highlight" style="text-align:center;">
-<div style="font-size:11px; font-weight:700; color:var(--text-sec); letter-spacing:1px; text-transform:uppercase; margin-bottom:5px;">
-CURRENT POOL
-</div>
+<div class="container">
+    <header>
+        <div class="logo">TW10X</div>
+        <div class="socials" style="margin:0">
+            <a href="https://t.me/tw10x" target="_blank">Channel</a>
+        </div>
+    </header>
 
-<!-- IMPORTANT: keep id EXACTLY -->
-<div id="jackpot-display" class="big-val skeleton">Loading...</div>
+    <div class="hero">
+        <h1>Fair TON Lottery</h1>
+        <div class="subtitle">Provably fair. Fully automated. Instant payouts.</div>
+        
+        <div class="prize-card">
+            <div class="prize-label">Current Prize Pool</div>
+            <div class="prize-amount" id="prize">...</div>
+            <div class="timer" id="timer">Loading...</div>
+            <a href="https://t.me/tw10x_official_bot" class="btn-play">PLAY IN TELEGRAM</a>
+        </div>
+    </div>
 
-<div style="margin-top:10px;">
-<!-- IMPORTANT: keep id EXACTLY -->
-<span id="timer-display" class="timer skeleton">--:--:--</span>
-</div>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-val" id="jackpot">-</div>
+            <div class="stat-lbl">Mega Jackpot</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" id="holder">-</div>
+            <div class="stat-lbl">Holder Drop</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" id="treasury">-</div>
+            <div class="stat-lbl">Treasury</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" id="dev">-</div>
+            <div class="stat-lbl">Dev Fund</div>
+        </div>
+    </div>
 
-<div style="display:flex; justify-content:space-between; margin-top:20px; font-size:12px; color:var(--text-sec); border-top:1px solid rgba(255,255,255,0.1); padding-top:15px;">
-<span id="total-users-display">Players: ...</span>
-<span id="total-tickets-display">Tickets: ...</span>
-</div>
-</div>
+    <div class="history-section">
+        <h3>Recent Winners</h3>
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>Round</th>
+                    <th>Date</th>
+                    <th>Winner</th>
+                    <th>Prize</th>
+                    <th>Proof</th>
+                </tr>
+            </thead>
+            <tbody id="history-rows">
+                <tr><td colspan="5" style="text-align:center; color:#444">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
 
-<div class="card">
-<div id="ton-connect"></div>
-<div class="stat-row">
-<span>Entry:</span><span class="stat-val">5 TON</span>
-</div>
-</div>
-
-<button id="buyBtn" class="btn" disabled>⏳ Loading...</button>
-<div id="status" class="status"></div>
-
-<!-- RULES trigger (modal) -->
-<div class="legal-link" onclick="openRulesModal()">📜 Rules & Disclaimer</div>
-</div>
-
-<!-- TICKETS TAB -->
-<div id="tab-tickets" class="content hidden">
-<div class="header"><h1>My Tickets</h1></div>
-
-<div class="card">
-<div class="stat-row">
-<span>🎯 Your chance</span>
-<span class="stat-val" id="win-chance-display">0%</span>
-</div>
-<div style="font-size:12px; color:var(--text-sec); margin-top:5px;">More tickets → higher chance.</div>
-</div>
-
-<div id="tickets-list" class="card">
-<p style="text-align:center; opacity:0.6;">Loading...</p>
-</div>
-</div>
-
-<!-- REF TAB -->
-<div id="tab-refs" class="content hidden">
-<div class="header"><h1>Partners</h1></div>
-
-<div class="card">
-<div class="stat-row"><span>Invited</span><span class="stat-val" id="ref-count-display">0</span></div>
-<div class="stat-row"><span>Earned</span><span class="stat-val" id="ref-earned-display">0 TON</span></div>
-</div>
-
-<div class="card" style="text-align:center;">
-<p style="margin-bottom:8px;"><b>Get 10% (0.5 TON)</b></p>
-<p style="font-size:13px; color:var(--text-sec); margin-top:0;">Instantly to your wallet for each friend.</p>
-
-<div class="ref-box"><code id="ref-link">Loading...</code></div>
-<button class="btn btn-outline" onclick="copyRef()">📋 Copy link</button>
-</div>
-</div>
-
-<!-- Bottom nav (MUST stay 3 items) -->
-<div class="bottom-nav">
-<div class="nav-item active" onclick="switchTab('game', this)"><span class="nav-icon">🎰</span>Game</div>
-<div class="nav-item" onclick="switchTab('tickets', this)"><span class="nav-icon">🎟</span>Tickets</div>
-<div class="nav-item" onclick="switchTab('refs', this)"><span class="nav-icon">🤝</span>Ref</div>
-</div>
-
-<!-- RULES MODAL v2.7 -->
-<div id="rulesModal" class="modal" aria-hidden="true">
-<div class="modal-content" role="dialog" aria-modal="true" aria-label="Rules">
-<div class="modal-head">
-<h2 class="modal-title">Rules</h2>
-<button class="modal-close" onclick="closeRulesModal()" aria-label="Close">×</button>
-</div>
-
-<div class="lang-switch">
-<div id="rulesLangRuBtn" class="lang-btn active" onclick="setRulesLang('ru')">RU</div>
-<div id="rulesLangEnBtn" class="lang-btn" onclick="setRulesLang('en')">EN</div>
-</div>
-
-<div class="modal-body">
-<!-- RU -->
-<div id="rules-ru">
-<div class="rules-card">
-<div class="rules-h">Что такое TW10X</div>
-<div class="rules-p">
-TW10X — это <b>on-chain игра</b> в блокчейне TON. Участие фиксируется транзакцией в смарт-контракт.
-<br /><br />
-Важно: это <b>игра, не инвестиция</b>. Результат не гарантирован.
-</div>
-</div>
-
-<div class="rules-card">
-<div class="rules-h">Как работает</div>
-<ul class="rules-ul">
-<li>Подключаете кошелёк через TonConnect.</li>
-<li>Нажимаете <b>Enter Game (5 TON)</b> и отправляете 5 TON в адрес контракта.</li>
-<li>Участие записывается в блокчейн (публично проверяется в explorer).</li>
-<li>По окончании раунда победитель определяется логикой смарт-контракта.</li>
-</ul>
-<div class="muted" style="margin-top:10px;">
-Текущий банк в приложении — это баланс адреса контракта (данные из сети TON).
-</div>
-</div>
-
-<div class="rules-card">
-<div class="rules-h">Прозрачность и проверка</div>
-<div class="rules-p">
-Любой может проверить банк и транзакции в обозревателе блокчейна.
-</div>
-
-<div class="rules-kv">
-<div class="kv">
-<div class="k">Адрес контракта</div>
-<div class="v" id="contractAddressTextRu">—</div>
-</div>
-</div>
-
-<div class="inline-actions">
-<button class="btn-mini" onclick="copyContractAddress()">📋 Скопировать адрес</button>
-<button class="btn-mini" onclick="openContractExplorer()">🔎 Открыть в Explorer</button>
-</div>
-
-<div class="muted" style="margin-top:10px;">
-Если цифры не обновляются: проверь интернет/впн и попробуй перезапустить Mini App.
-</div>
-</div>
-
-<div class="rules-card">
-<div class="rules-h">Дисклеймер</div>
-<ul class="rules-ul">
-<li>Игра добровольная. Участник действует на свой риск.</li>
-<li>Нет гарантии выигрыша.</li>
-<li>Все транзакции публичны в блокчейне TON.</li>
-<li>Отправка средств в контракт является действием пользователя. Возврат не гарантируется.</li>
-</ul>
-</div>
-</div>
-
-<!-- EN -->
-<div id="rules-en" class="hidden">
-<div class="rules-card">
-<div class="rules-h">What is TW10X</div>
-<div class="rules-p">
-TW10X is a <b>fair on-chain game</b> on the TON blockchain. Your entry is recorded by an on-chain transaction
-sent to the smart contract.
-<br /><br />
-Important: this is a <b>game, not an investment</b>. No outcome is guaranteed.
-</div>
-</div>
-
-<div class="rules-card">
-<div class="rules-h">How it works</div>
-<ul class="rules-ul">
-<li>Connect your wallet via TonConnect.</li>
-<li>Tap <b>Enter Game (5 TON)</b> and send 5 TON to the contract address.</li>
-<li>Your entry is recorded on-chain (publicly verifiable in explorers).</li>
-<li>When the round ends, the winner is selected by the smart contract logic.</li>
-</ul>
-<div class="muted" style="margin-top:10px;">
-The “Current Pool” shown in the app reflects the on-chain contract balance.
-</div>
-</div>
-
-<div class="rules-card">
-<div class="rules-h">Transparency & verification</div>
-<div class="rules-p">
-Anyone can verify the pool and transactions in TON explorers.
-</div>
-
-<div class="rules-kv">
-<div class="kv">
-<div class="k">Contract address</div>
-<div class="v" id="contractAddressTextEn">—</div>
-</div>
-</div>
-
-<div class="inline-actions">
-<button class="btn-mini" onclick="copyContractAddress()">📋 Copy address</button>
-<button class="btn-mini" onclick="openContractExplorer()">🔎 Open Explorer</button>
-</div>
-
-<div class="muted" style="margin-top:10px;">
-If numbers do not update, check your connection and reopen the Mini App.
-</div>
-</div>
-
-<div class="rules-card">
-<div class="rules-h">Disclaimer</div>
-<ul class="rules-ul">
-<li>Participation is voluntary. You act at your own risk.</li>
-<li>No guaranteed outcome.</li>
-<li>All transactions are public on TON.</li>
-<li>Funds are sent by the user. Refund is not guaranteed.</li>
-</ul>
-</div>
-</div>
-
-</div>
-</div>
+    <footer>
+        <div class="socials">
+            <a href="https://t.me/tw10x_official_bot" target="_blank">Bot</a>
+            <a href="https://t.me/tw10x" target="_blank">Channel</a>
+            <a href="https://tonviewer.com/EQCOaDls2_jUvqMOVdShynh4tbjZTwczd1Fj0P0PZpBhgYxd" target="_blank">Smart Contract</a>
+        </div>
+        &copy; 2026 TW10X. Built on TON.
+    </footer>
 </div>
 
 <script>
-// ==========================================
-// 🔒 JS LOGIC (v2.6 base; keep ids intact)
-// ==========================================
-const CONTRACT_ADDRESS = "EQCOaDls2_jUvqMOVdShynh4tbjZTwczd1Fj0P0PZpBhgYxd";
-const TICKET_PRICE = "5000000000";
-const BOT_USERNAME = "tw10x_official_bot";
+    const API_OVERVIEW = '/api/public/overview';
+    const API_ROUNDS = '/api/public/rounds';
+    const fmt = (n) => n ? n.toLocaleString('en-US', {maximumFractionDigits: 1}) : "0";
+    
+    // FIX #1: Global variable for interval to prevent leaks
+    let timerInterval = null;
 
-const tg = window.Telegram.WebApp;
-tg.expand();
+    async function loadData() {
+        try {
+            // 1. Overview & Balances
+            let res = await fetch(API_OVERVIEW);
+            if (!res.ok) return;
 
-const userId = tg.initDataUnsafe?.user?.id;
-let globalTotalTickets = 0;
-let myTicketsCount = 0;
+            let data = await res.json();
+            
+            // FIX #2: Null-Guard (Crash protection)
+            if (!data || !data.balances) {
+                console.warn("API returned empty data");
+                return;
+            }
+            
+            // Update DOM
+            document.getElementById('prize').innerText = fmt(data.balances.prize) + " TON";
+            document.getElementById('jackpot').innerText = fmt(data.balances.jackpot);
+            document.getElementById('holder').innerText = fmt(data.balances.holder);
+            document.getElementById('treasury').innerText = fmt(data.balances.treasury);
+            document.getElementById('dev').innerText = fmt(data.balances.dev);
+            
+            // Timer (Safe Start)
+            startTimer(data.round_end_ts);
 
-// ✅ TASK 1.1: ANALYTICS FUNCTION
-function sendAnalytics(event, extra = {}) {
-    try {
-        fetch('/api/analytics', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                event: event,
-                user_id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null,
-                wallet: window.userWallet || null,
-                ts: Date.now(),
-                extra: extra
-            })
-        });
-    } catch (e) {
-        // Safe fail, do not block main thread
+            // 2. Rounds History
+            let resR = await fetch(API_ROUNDS);
+            if (resR.ok) {
+                let dataR = await resR.json();
+                renderHistory(dataR.rounds);
+            }
+
+        } catch(e) {
+            console.error("API Error:", e);
+        }
     }
-}
 
-// --- Tabs ---
-function switchTab(tabName, el) {
-// ✅ TASK 1.2: ANALYTICS TRIGGER
-sendAnalytics('switch_tab', { tab: tabName });
+    function startTimer(endTs) {
+        // FIX #1: Clear previous interval
+        if (timerInterval) clearInterval(timerInterval);
 
-document.querySelectorAll('.content').forEach(d => d.classList.add('hidden'));
-document.getElementById('tab-' + tabName).classList.remove('hidden');
-document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-if (el) el.classList.add('active');
-if (tabName === 'tickets') loadTickets();
-if (tabName === 'refs') { loadRefInfo(); loadRefStats(); }
-}
+        const el = document.getElementById('timer');
+        
+        // Initial run
+        updateTimerUI(endTs, el);
 
-// --- TonConnect ---
-const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-manifestUrl: 'https://tw10x.app/tonconnect-manifest.json',
-buttonRootId: 'ton-connect'
-});
+        timerInterval = setInterval(() => {
+            updateTimerUI(endTs, el);
+        }, 1000);
+    }
 
-let userWallet = null;
+    function updateTimerUI(endTs, el) {
+        let now = Math.floor(Date.now() / 1000);
+        let diff = endTs - now;
+        
+        if (diff <= 0) {
+            el.innerText = "Round Ending...";
+            // Don't clear interval here to allow auto-restart detection if API updates
+            return;
+        }
+        
+        let d = Math.floor(diff / 86400);
+        let h = Math.floor((diff % 86400) / 3600);
+        let m = Math.floor((diff % 3600) / 60);
+        let s = diff % 60;
+        
+        el.innerText = `Ends in: ${d}d ${h}h ${m}m ${s}s`;
+    }
 
-window.onload = () => {
-// Set static texts
-if (window.TonWeb) {
-document.getElementById('buyBtn').innerText = "🎟 ENTER GAME (5 TON)";
-} else {
-document.getElementById('buyBtn').innerText = "🎟 ENTER GAME (5 TON)";
-}
+    function renderHistory(rounds) {
+        const tbody = document.getElementById('history-rows');
+        if (!rounds || rounds.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#444">No finished rounds yet</td></tr>';
+            return;
+        }
+        
+        let html = '';
+        rounds.forEach(r => {
+            let date = new Date(r.date * 1000).toLocaleDateString();
+            html += `
+                <tr>
+                    <td>#${r.id}</td>
+                    <td>${date}</td>
+                    <td>${r.winner}</td>
+                    <td style="color:#0098EA; font-weight:bold">${fmt(r.prize)} TON</td>
+                    <td><a href="https://tonviewer.com/transaction/${r.tx}" target="_blank" class="tx-link">View TX</a></td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
 
-// Fill contract address in Rules
-syncContractAddressInRules();
+    // Initial Load
+    loadData();
 
-loadGlobalStats();
-loadRefInfo();
-
-// timer loop
-setInterval(updateTimer, 1000);
-
-// periodic refresh (helps when app is open long)
-setInterval(loadGlobalStats, 30000);
-};
-
-tonConnectUI.onStatusChange(wallet => {
-if (wallet) {
-userWallet = wallet.account.address;
-// ✅ TASK 1.2: ANALYTICS TRIGGER
-sendAnalytics('connect_wallet');
-
-document.getElementById('buyBtn').disabled = false;
-
-if (userId) {
-fetch('/api/save_wallet', {
-method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({ user_id: userId, wallet: userWallet })
-}).catch(console.error);
-}
-
-} else {
-userWallet = null;
-document.getElementById('buyBtn').disabled = true;
-}
-});
-
-// --- Stats ---
-let roundEndTime = 0;
-
-async function loadGlobalStats() {
-try {
-const res = await fetch('/api/global_stats', { cache: "no-store" });
-const data = await res.json();
-
-const jackpotEl = document.getElementById('jackpot-display');
-jackpotEl.innerText = data.jackpot.toFixed(1) + " TON";
-jackpotEl.classList.remove('skeleton');
-
-roundEndTime = data.round_end;
-
-const timerEl = document.getElementById('timer-display');
-timerEl.classList.remove('skeleton');
-
-document.getElementById('total-users-display').innerText = "Players: " + data.total_users;
-document.getElementById('total-tickets-display').innerText = "Tickets: " + data.total_tickets;
-
-globalTotalTickets = data.total_tickets;
-} catch (e) {
-// Do not break UI; keep skeleton, but show minimal fallback
-console.error(e);
-const jackpotEl = document.getElementById('jackpot-display');
-if (jackpotEl && jackpotEl.classList.contains('skeleton')) {
-jackpotEl.innerText = "—";
-}
-}
-}
-
-function updateTimer() {
-if (!roundEndTime) return;
-const now = Math.floor(Date.now() / 1000);
-const diff = roundEndTime - now;
-
-const el = document.getElementById('timer-display');
-if (!el) return;
-
-if (diff <= 0) {
-el.innerText = "ROUND ENDING...";
-return;
-}
-
-const days = Math.floor(diff / 86400);
-const hours = Math.floor((diff % 86400) / 3600);
-const minutes = Math.floor((diff % 3600) / 60);
-const seconds = diff % 60;
-
-let str = "";
-if (days > 0) str += days + "d ";
-str += [hours, minutes, seconds].map(v => v < 10 ? "0" + v : v).join(":");
-el.innerText = str;
-}
-
-// --- Ref stats ---
-async function loadRefStats() {
-if (!userId) return;
-try {
-const res = await fetch(`/api/ref_stats?user_id=${userId}`, { cache: "no-store" });
-const data = await res.json();
-document.getElementById('ref-count-display').innerText = data.invited;
-document.getElementById('ref-earned-display').innerText = data.earned.toFixed(1) + " TON";
-} catch (e) {
-console.error(e);
-}
-}
-
-// --- Transactions ---
-document.getElementById('buyBtn').addEventListener('click', async () => {
-// ✅ TASK 1.2: ANALYTICS TRIGGER
-sendAnalytics('enter_game_click');
-
-if (!userWallet) return;
-
-document.getElementById('status').innerText = "⏳ Preparing...";
-try {
-let refAddrStr = null;
-
-if (userId) {
-try {
-const res = await fetch(`/api/referrer?user_id=${userId}`, { cache: "no-store" });
-const data = await res.json();
-if (data.ref_wallet) refAddrStr = data.ref_wallet;
-} catch (e) {}
-}
-
-let payload = null;
-if (refAddrStr) {
-try {
-const cell = new TonWeb.boc.Cell();
-const refAddress = new TonWeb.utils.Address(refAddrStr);
-cell.bits.writeAddress(refAddress);
-payload = TonWeb.utils.bytesToBase64(await cell.toBoc());
-} catch (e) {}
-}
-
-const txRequest = {
-validUntil: Math.floor(Date.now() / 1000) + 600,
-messages: [{ address: CONTRACT_ADDRESS, amount: TICKET_PRICE, payload: payload }]
-};
-
-await tonConnectUI.sendTransaction(txRequest);
-
-// ✅ TASK 1.2: ANALYTICS TRIGGER
-sendAnalytics('tx_success');
-
-document.getElementById('status').innerText = "🚀 Success!";
-setTimeout(loadGlobalStats, 5000);
-} catch (e) {
-console.error(e);
-// ✅ TASK 1.2: ANALYTICS TRIGGER
-sendAnalytics('tx_cancel');
-document.getElementById('status').innerText = "Cancelled / Error";
-}
-});
-
-async function loadTickets() {
-const list = document.getElementById('tickets-list');
-if (!list) return;
-
-if (!userWallet) {
-list.innerHTML = "<p style='text-align:center; opacity:0.7;'>Connect wallet first</p>";
-return;
-}
-
-try {
-const res = await fetch(`/api/user?address=${userWallet}`, { cache: "no-store" });
-const data = await res.json();
-
-if (!data.history || data.history.length === 0) {
-list.innerHTML = "<p style='text-align:center; opacity:0.7;'>No entries yet</p>";
-myTicketsCount = 0;
-} else {
-myTicketsCount = data.history.length;
-
-let html = "";
-data.history.forEach(t => {
-html += `<div class="ticket-item">
-<span style="font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace; color:#4facfe">${t.hash}</span>
-<span>${t.amount} TON</span>
-</div>`;
-});
-list.innerHTML = html;
-}
-
-if (globalTotalTickets > 0) {
-const chance = (myTicketsCount / globalTotalTickets) * 100;
-document.getElementById('win-chance-display').innerText = chance.toFixed(2) + "%";
-} else {
-document.getElementById('win-chance-display').innerText = "0%";
-}
-} catch (e) {
-console.error(e);
-list.innerHTML = "<p style='text-align:center; opacity:0.7;'>Loading...</p>";
-}
-}
-
-function loadRefInfo() {
-if (userId) {
-const link = `https://t.me/${BOT_USERNAME}?start=ref_${userId}`;
-document.getElementById('ref-link').innerText = link;
-} else {
-document.getElementById('ref-link').innerText = "Open via Telegram";
-}
-}
-
-function copyRef() {
-const text = document.getElementById('ref-link').innerText;
-navigator.clipboard.writeText(text).then(() => {
-tg.showPopup({ message: "✅ Copied", buttons: [{ type: "ok" }] });
-}).catch(() => {});
-}
-
-// ==========================================
-// ✅ Rules Modal v2.7 (safe)
-// ==========================================
-let rulesLang = 'ru';
-
-function openRulesModal() {
-// ✅ TASK 1.2: ANALYTICS TRIGGER
-sendAnalytics('open_rules');
-
-const m = document.getElementById('rulesModal');
-if (!m) return;
-m.style.display = "block";
-m.setAttribute('aria-hidden', 'false');
-// default language: RU (or auto by Telegram)
-// if Telegram language is not Russian, default to EN
-try {
-const lang = (tg?.initDataUnsafe?.user?.language_code || '').toLowerCase();
-if (lang && lang !== 'ru' && lang !== 'ru-ru') setRulesLang('en');
-else setRulesLang('ru');
-} catch (e) {
-setRulesLang('ru');
-}
-}
-
-function closeRulesModal() {
-const m = document.getElementById('rulesModal');
-if (!m) return;
-m.style.display = "none";
-m.setAttribute('aria-hidden', 'true');
-}
-
-// close by clicking overlay
-window.addEventListener('click', (event) => {
-const m = document.getElementById('rulesModal');
-if (!m) return;
-if (event.target === m) closeRulesModal();
-});
-
-function setRulesLang(lang) {
-rulesLang = (lang === 'en') ? 'en' : 'ru';
-
-const ruBtn = document.getElementById('rulesLangRuBtn');
-const enBtn = document.getElementById('rulesLangEnBtn');
-const ru = document.getElementById('rules-ru');
-const en = document.getElementById('rules-en');
-
-if (!ruBtn || !enBtn || !ru || !en) return;
-
-if (rulesLang === 'ru') {
-ruBtn.classList.add('active');
-enBtn.classList.remove('active');
-ru.classList.remove('hidden');
-en.classList.add('hidden');
-} else {
-enBtn.classList.add('active');
-ruBtn.classList.remove('active');
-en.classList.remove('hidden');
-ru.classList.add('hidden');
-}
-}
-
-function syncContractAddressInRules() {
-const elRu = document.getElementById('contractAddressTextRu');
-const elEn = document.getElementById('contractAddressTextEn');
-if (elRu) elRu.innerText = CONTRACT_ADDRESS;
-if (elEn) elEn.innerText = CONTRACT_ADDRESS;
-}
-
-function copyContractAddress() {
-navigator.clipboard.writeText(CONTRACT_ADDRESS).then(() => {
-tg.showPopup({ message: rulesLang === 'en' ? "✅ Address copied" : "✅ Адрес скопирован", buttons: [{ type: "ok" }] });
-}).catch(() => {});
-}
-
-function openContractExplorer() {
-// Prefer tonviewer; safe and simple
-const url = `https://tonviewer.com/${CONTRACT_ADDRESS}`;
-try { tg.openLink(url); } catch (e) { window.open(url, "_blank"); }
-}
+    // Recommendation #4: Auto-refresh every 30s (Keeps data live)
+    setInterval(loadData, 30000);
 </script>
+
 </body>
 </html>
