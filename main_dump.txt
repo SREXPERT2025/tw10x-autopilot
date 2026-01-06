@@ -3,8 +3,7 @@ import logging
 import aiosqlite
 import aiohttp
 import time
-# ✅ ШАГ 2 (ТЗ): Исправленный импорт
-from analytics import init_analytics_db, handle_analytics, handle_analytics_funnel
+from analytics import analytics_handler
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandStart, CommandObject, ChatMemberUpdatedFilter
@@ -147,78 +146,6 @@ async def has_active_ticket(user_id):
             count = (await cursor.fetchone())[0]
             return count > 0
 
-# 🔥 ФУНКЦИЯ (ТЗ: Аналитика 24h)
-async def get_analytics_24h():
-    since_ts = int((time.time() - 24 * 3600) * 1000)
-
-    async with aiosqlite.connect("lottery.db") as db:
-        db.row_factory = aiosqlite.Row
-
-        rows = await db.execute_fetchall(
-            """
-            SELECT event, COUNT(*) AS cnt
-            FROM analytics_events
-            WHERE ts_ms >= ?
-            GROUP BY event
-            """,
-            (since_ts,)
-        )
-
-    stats = {r["event"]: r["cnt"] for r in rows}
-
-    def v(key):
-        return stats.get(key, 0)
-
-    # Внимание: тут используется логика из ТЗ.
-    opened = max(v("open_rules"), 1)  # защита от деления на 0
-
-    return {
-        "open": v("open_rules"),
-        "rules": v("open_rules"),
-        "wallet": v("connect_wallet"),
-        "enter": v("enter_game_click"),
-        "success": v("tx_success"),
-        "p_rules": round(v("open_rules") / opened * 100),
-        "p_wallet": round(v("connect_wallet") / opened * 100),
-        "p_enter": round(v("enter_game_click") / opened * 100),
-        "p_success": round(v("tx_success") / opened * 100),
-    }
-
-# 🔥 НОВАЯ ФУНКЦИЯ (ТЗ: A. Функция агрегации за 7 дней)
-async def get_analytics_7d():
-    since_ts = int((time.time() - 7 * 24 * 3600) * 1000)
-
-    async with aiosqlite.connect("lottery.db") as db:
-        db.row_factory = aiosqlite.Row
-        rows = await db.execute_fetchall(
-            """
-            SELECT event, COUNT(*) AS cnt
-            FROM analytics_events
-            WHERE ts_ms >= ?
-            GROUP BY event
-            """,
-            (since_ts,)
-        )
-
-    stats = {r["event"]: r["cnt"] for r in rows}
-
-    def v(key):
-        return stats.get(key, 0)
-
-    base = max(v("open_rules"), 1)  # защита от деления на 0
-
-    return {
-        "open": v("open_rules"),
-        "rules": v("open_rules"),
-        "wallet": v("connect_wallet"),
-        "enter": v("enter_game_click"),
-        "success": v("tx_success"),
-        "p_rules": round(v("open_rules") / base * 100),
-        "p_wallet": round(v("connect_wallet") / base * 100),
-        "p_enter": round(v("enter_game_click") / base * 100),
-        "p_success": round(v("tx_success") / base * 100),
-    }
-
 # ==========================================
 # 🔁 SCANNER
 # ==========================================
@@ -357,44 +284,6 @@ async def admin_stats(message: types.Message):
     bal = await get_contract_balance()
     await message.answer(f"📊 <b>ADMIN STATS</b>\n💰 Balance: {bal} TON", parse_mode="HTML")
 
-# 🔥 КОМАНДА (ТЗ: C. Команда /analytics)
-@dp.message(Command("analytics"))
-async def analytics_cmd(message: types.Message):
-    if message.from_user.id != int(ADMIN_ID):
-        return
-
-    data = await get_analytics_24h()
-
-    text = (
-        "📊 <b>Analytics (24h)</b>\n\n"
-        f"👀 Open app: {data['open']}\n"
-        f"📜 Rules opened: {data['rules']} ({data['p_rules']}%)\n"
-        f"🔗 Wallet connected: {data['wallet']} ({data['p_wallet']}%)\n"
-        f"🎟 Enter clicked: {data['enter']} ({data['p_enter']}%)\n"
-        f"💸 Success tx: {data['success']} ({data['p_success']}%)"
-    )
-
-    await message.answer(text, parse_mode="HTML")
-
-# 🔥 НОВАЯ КОМАНДА (ТЗ: B. Команда /analytics_week)
-@dp.message(Command("analytics_week"))
-async def analytics_week_cmd(message: types.Message):
-    if message.from_user.id != int(ADMIN_ID):
-        return
-
-    data = await get_analytics_7d()
-
-    text = (
-        "📊 <b>Analytics (7 days)</b>\n\n"
-        f"👀 Open app: {data['open']}\n"
-        f"📜 Rules opened: {data['rules']} ({data['p_rules']}%)\n"
-        f"🔗 Wallet connected: {data['wallet']} ({data['p_wallet']}%)\n"
-        f"🎟 Enter clicked: {data['enter']} ({data['p_enter']}%)\n"
-        f"💸 Success tx: {data['success']} ({data['p_success']}%)"
-    )
-
-    await message.answer(text, parse_mode="HTML")
-
 @dp.message(Command("broadcast"))
 async def broadcast_cmd(message: types.Message, command: CommandObject):
     if message.from_user.id != int(ADMIN_ID): return
@@ -434,9 +323,6 @@ async def start_cmd(message: types.Message, command: CommandObject):
 
 async def main():
     await init_db()
-    # ✅ ШАГ 3 (ТЗ): Инициализация БД аналитики
-    await init_analytics_db()
-    
     app = web.Application()
     app.router.add_get("/", handle_index)
     app.router.add_post("/api/save_wallet", handle_save_wallet)
@@ -444,11 +330,7 @@ async def main():
     app.router.add_get("/api/user", handle_user_stats)
     app.router.add_get("/api/global_stats", handle_global_stats)
     app.router.add_get("/api/ref_stats", handle_ref_stats)
-    
-    # ✅ ШАГ 4 (ТЗ): Роуты аналитики
-    app.router.add_post("/api/analytics", handle_analytics)
-    app.router.add_get("/api/analytics_funnel", handle_analytics_funnel)
-    
+    app.router.add_post("/api/analytics", analytics_handler)
     app.router.add_static("/webapp", path="./webapp")
 
     handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
