@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TW10X - Decentralized Raffle Protocol</title>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800;900&display=swap" rel="stylesheet">
     <style>
         :root { 
             --main: #00C2FF; /* Cyber Blue */
             --bg: #020205; 
-            --glass: rgba(15, 15, 25, 0.7);
+            --glass: rgba(10, 10, 20, 0.6);
             --glass-border: rgba(255, 255, 255, 0.1);
             --text: #ffffff; 
             --gray: #a0a0ff; 
@@ -17,7 +17,6 @@
             --purple: #bd00ff;
         }
         
-        /* --- BASE --- */
         body { 
             background-color: var(--bg); 
             color: var(--text); 
@@ -30,68 +29,63 @@
             background-position: center;
             background-attachment: fixed;
         }
-        .bg-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 5, 12, 0.7); z-index: -1; pointer-events: none; }
 
         a { text-decoration: none; color: inherit; transition: 0.3s; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+        .bg-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 5, 10, 0.6); z-index: -1; pointer-events: none; }
+
         .container { max-width: 800px; margin: 0 auto; padding: 0 20px 60px 20px; position: relative; }
         
-        /* --- HEADER --- */
         header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; }
         .logo { font-weight: 900; font-size: 26px; letter-spacing: 1px; color: #fff; text-shadow: 0 0 15px var(--main); }
         .header-controls { display: flex; gap: 15px; font-size: 12px; font-weight: 700; color: #fff; align-items: center; text-transform: uppercase; }
-        .lang-btn { cursor: pointer; padding: 5px 10px; border: 1px solid transparent; border-radius: 20px; opacity: 0.7; }
-        .lang-btn.active { border-color: var(--main); background: rgba(0, 194, 255, 0.2); opacity: 1; box-shadow: 0 0 10px rgba(0, 194, 255, 0.3); }
+        .lang-btn { cursor: pointer; padding: 5px 10px; border: 1px solid transparent; border-radius: 20px; }
+        .lang-btn.active { border-color: var(--main); background: rgba(0, 194, 255, 0.2); box-shadow: 0 0 10px rgba(0, 194, 255, 0.3); }
 
-        .announcement { background: rgba(0, 194, 255, 0.15); color: #fff; padding: 10px; text-align: center; font-size: 12px; font-weight: 700; border-bottom: 1px solid rgba(0, 194, 255, 0.3); backdrop-filter: blur(5px); text-shadow: 0 0 5px var(--main); }
+        .announcement { background: rgba(0, 194, 255, 0.1); color: #fff; padding: 8px; text-align: center; font-size: 12px; font-weight: 700; border-bottom: 1px solid rgba(0, 194, 255, 0.3); backdrop-filter: blur(5px); text-shadow: 0 0 5px var(--main); }
 
-        /* --- HERO --- */
         .hero { text-align: center; padding: 40px 0 30px 0; }
-        h1 { font-size: 36px; margin: 0 0 15px 0; font-weight: 900; line-height: 1.2; text-transform: uppercase; text-shadow: 0 0 25px rgba(0, 194, 255, 0.6); }
-        .subtitle { color: #ccc; font-size: 13px; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.8); max-width: 600px; margin-left: auto; margin-right: auto; }
+        h1 { font-size: 38px; margin: 0 0 10px 0; font-weight: 900; line-height: 1.1; text-transform: uppercase; text-shadow: 0 0 20px rgba(0, 194, 255, 0.6); }
+        .subtitle { color: #ccc; font-size: 14px; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
 
-        /* --- PRIZE CARD (GLASS + GLOW) --- */
         .prize-card { 
-            background: rgba(10, 15, 30, 0.6);
+            background: rgba(0, 0, 0, 0.6);
             backdrop-filter: blur(20px); 
             border: 2px solid var(--main); 
             border-radius: 30px; 
             padding: 40px 20px; margin: 0 auto; max-width: 420px; 
-            box-shadow: 0 0 60px rgba(0, 194, 255, 0.2), inset 0 0 30px rgba(0, 194, 255, 0.1);
+            box-shadow: 0 0 50px rgba(0, 194, 255, 0.25), inset 0 0 20px rgba(0, 194, 255, 0.1);
             position: relative; overflow: hidden;
-            transform: translateZ(0); /* HW accel */
         }
+        .prize-card::before {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: radial-gradient(circle, rgba(0,194,255,0.1) 0%, transparent 60%);
+            animation: rotate-glow 10s linear infinite; pointer-events: none;
+        }
+        @keyframes rotate-glow { from {transform: rotate(0deg);} to {transform: rotate(360deg);} }
+
+        .prize-label { color: var(--main); text-transform: uppercase; font-size: 12px; font-weight: 800; letter-spacing: 2px; margin-bottom: 5px; text-shadow: 0 0 10px var(--main); position: relative; }
+        .prize-amount { font-size: 56px; font-weight: 900; line-height: 1; margin-bottom: 5px; color: #fff; text-shadow: 0 0 20px rgba(255,255,255,0.8); position: relative; }
         
-        .prize-label { color: var(--main); text-transform: uppercase; font-size: 11px; font-weight: 800; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 0 10px var(--main); }
-        .prize-amount { font-size: 52px; font-weight: 900; line-height: 1; margin-bottom: 10px; color: #fff; text-shadow: 0 0 20px rgba(255,255,255,0.8); }
-        
-        /* Progress Bar */
-        .progress-container { background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; margin: 25px auto 5px auto; position: relative; width: 85%; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+        .progress-container { background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; margin: 20px auto; position: relative; width: 80%; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
         .progress-bar { height: 100%; background: linear-gradient(90deg, var(--main), #fff); width: 0%; box-shadow: 0 0 15px var(--main); transition: width 1s ease-out; }
-        .progress-text { font-size: 10px; color: #aaa; display: flex; justify-content: space-between; width: 85%; margin: 0 auto; font-weight: 700; text-transform: uppercase; }
+        .progress-text { font-size: 10px; color: #aaa; display: flex; justify-content: space-between; width: 80%; margin: -15px auto 0 auto; position: relative; top: 25px; font-weight: 700; text-transform: uppercase; }
 
-        .timer-block { margin-top: 30px; }
-        .timer { font-family: 'Courier New', monospace; font-size: 16px; color: #fff; font-weight: bold; text-shadow: 0 0 5px #fff; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 8px; display: inline-block; }
-        .updated-ago { font-size: 9px; color: var(--main); text-transform: uppercase; margin-top: 5px; opacity: 0.8; }
+        .timer { margin-top: 35px; font-family: 'Courier New', monospace; font-size: 16px; color: #fff; font-weight: bold; text-shadow: 0 0 5px #fff; position: relative; }
+        .updated-ago { font-size: 9px; color: var(--main); text-transform: uppercase; margin-top: 5px; opacity: 0.8; position: relative; }
 
-        /* Buttons */
         .btn-primary { 
-            display: block; width: 100%; max-width: 280px; margin: 30px auto 10px auto;
+            display: block; width: 100%; max-width: 280px; margin: 25px auto 0 auto;
             background: linear-gradient(90deg, #005bea, #00c6fb); 
             color: #fff; font-weight: 900; padding: 18px 0; border-radius: 50px; font-size: 16px; 
             text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-            box-shadow: 0 0 25px rgba(0, 198, 251, 0.4); border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 0 20px rgba(0, 198, 251, 0.4); border: 1px solid rgba(255,255,255,0.2);
             position: relative; overflow: hidden; transition: 0.3s;
-            animation: pulse-btn 3s infinite;
         }
-        .btn-primary:hover { transform: scale(1.02); box-shadow: 0 0 45px rgba(0, 198, 251, 0.6); }
-        @keyframes pulse-btn { 0% { box-shadow: 0 0 0 0 rgba(0, 194, 255, 0.4); } 70% { box-shadow: 0 0 0 15px rgba(0, 194, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 194, 255, 0); } }
+        .btn-primary:hover { transform: scale(1.03); box-shadow: 0 0 40px rgba(0, 198, 251, 0.6); }
+        .cta-hint { font-size: 10px; color: #aaa; margin-top: 15px; position: relative; }
 
-        .btn-secondary { color: #888; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-top: 15px; display: inline-block; border-bottom: 1px dotted #555; }
-        .cta-hint { font-size: 11px; color: #aaa; margin-top: 15px; max-width: 300px; margin-left: auto; margin-right: auto; line-height: 1.4; }
-
-        /* --- STEPS --- */
         .how-works { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-top: 50px; }
         .step-card { 
             background: var(--glass); backdrop-filter: blur(10px); 
@@ -101,56 +95,54 @@
         .step-icon { font-size: 32px; margin-bottom: 10px; display: block; filter: drop-shadow(0 0 10px rgba(255,255,255,0.3)); }
         .step-text { font-size: 12px; font-weight: 700; color: #eee; text-transform: uppercase; }
 
-        /* --- REFERRAL (GOLD) --- */
         .referral-block { 
-            margin-top: 50px; background: linear-gradient(135deg, rgba(255, 215, 0, 0.05) 0%, rgba(20, 20, 20, 0.9) 100%);
-            border: 1px solid rgba(255, 215, 0, 0.4); border-radius: 20px; padding: 30px; 
+            margin-top: 50px; background: linear-gradient(90deg, rgba(255, 215, 0, 0.05), rgba(255, 215, 0, 0.15), rgba(255, 215, 0, 0.05));
+            border: 1px solid rgba(255, 215, 0, 0.5); border-radius: 20px; padding: 30px; 
             text-align: center; position: relative; overflow: hidden;
-            box-shadow: 0 0 40px rgba(255, 215, 0, 0.1);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.1);
         }
-        .ref-badge { position: absolute; top: 12px; right: 12px; background: var(--gold); color: #000; font-size: 10px; padding: 4px 8px; border-radius: 10px; font-weight: 900; text-transform: uppercase; }
-        .ref-title { color: var(--gold); font-weight: 900; font-size: 18px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 15px rgba(255, 215, 0, 0.4); display: flex; align-items: center; justify-content: center; gap: 8px; }
-        .ref-sim { font-family: monospace; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 10px; border: 1px solid rgba(255,215,0,0.2); display: inline-block; color: #fff; margin-bottom: 20px; font-size: 12px; }
-        .btn-ref { background: transparent; color: var(--gold); padding: 12px 30px; border-radius: 30px; font-size: 12px; font-weight: 900; text-transform: uppercase; border: 1px solid var(--gold); transition: 0.3s; display: inline-block; }
-        .btn-ref:hover { background: var(--gold); color: #000; box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); }
+        .referral-block::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at center, rgba(255,215,0,0.2), transparent 70%); pointer-events: none; }
+        .ref-badge { position: absolute; top: 10px; right: 10px; background: var(--gold); color: #000; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 900; text-transform: uppercase; }
+        .ref-title { color: var(--gold); font-weight: 900; font-size: 18px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); position: relative; }
+        .ref-sim { font-family: monospace; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 10px; border: 1px solid rgba(255,215,0,0.3); display: inline-block; color: #fff; margin-bottom: 20px; position: relative; }
+        .btn-ref { background: var(--gold); color: #000; padding: 12px 30px; border-radius: 30px; font-size: 13px; font-weight: 900; text-transform: uppercase; border: none; box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); position: relative; transition: 0.3s; }
+        .btn-ref:hover { box-shadow: 0 0 40px rgba(255, 215, 0, 0.6); transform: scale(1.05); }
 
-        /* --- SPONSOR (PURPLE) --- */
         .sponsor-block { 
             margin-top: 40px; 
-            background: linear-gradient(90deg, rgba(155, 92, 255, 0.05), rgba(20, 20, 20, 0.8), rgba(155, 92, 255, 0.05));
-            border: 1px solid rgba(155, 92, 255, 0.4); border-radius: 20px; padding: 25px; text-align: center; position: relative; 
+            background: linear-gradient(90deg, rgba(155, 92, 255, 0.05), rgba(155, 92, 255, 0.15), rgba(155, 92, 255, 0.05));
+            border: 1px solid rgba(155, 92, 255, 0.5); border-radius: 20px; padding: 25px; text-align: center; position: relative; 
             box-shadow: 0 0 30px rgba(155, 92, 255, 0.15);
         }
-        .slot-badge { background: var(--purple); color: #fff; font-size: 9px; font-weight: bold; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; box-shadow: 0 0 10px var(--purple); position: absolute; top: -10px; left: 50%; transform: translateX(-50%); }
-        .sponsor-text { font-size: 13px; color: #eee; font-weight: 600; margin-top: 5px; }
-        .sponsor-cta { color: #d0aeff; font-size: 11px; font-weight: 800; text-transform: uppercase; margin-top: 10px; display: inline-block; border-bottom: 1px solid rgba(155,92,255,0.5); }
+        .slot-badge { background: var(--purple); color: #fff; font-size: 10px; font-weight: bold; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; box-shadow: 0 0 10px var(--purple); margin-bottom: 10px; display: inline-block; }
+        .sponsor-text { font-size: 14px; color: #eee; font-weight: 600; }
+        .sponsor-cta { color: #d0aeff; font-size: 12px; font-weight: 800; text-transform: uppercase; margin-top: 10px; display: inline-block; border-bottom: 1px solid rgba(155,92,255,0.5); }
 
-        /* --- STATS (HUD) --- */
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 50px; }
         .stat-card { 
             background: rgba(0,0,0,0.5); backdrop-filter: blur(10px);
             border: 1px solid rgba(0, 194, 255, 0.2); 
             padding: 20px; border-radius: 16px; text-align: center; 
-            transition: 0.3s; position: relative;
+            transition: 0.3s; 
+            position: relative;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
         }
         .stat-card:hover { border-color: var(--main); box-shadow: 0 0 20px rgba(0,194,255,0.2); transform: translateY(-3px); }
-        .stat-val { font-size: 22px; font-weight: 800; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
+        .stat-val { font-size: 24px; font-weight: 800; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
         .stat-lbl { font-size: 10px; font-weight: 800; color: var(--main); text-transform: uppercase; letter-spacing: 1px; margin-top: 5px; }
         
         details { margin-top: 8px; }
-        summary { font-size: 9px; color: #777; cursor: pointer; text-transform: uppercase; font-weight: 700; transition: 0.3s; }
+        summary { font-size: 10px; color: #777; cursor: pointer; text-transform: uppercase; font-weight: 700; transition: 0.3s; }
         summary:hover { color: #fff; }
         .details-text { font-size: 11px; color: #aaa; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; text-align: left; }
 
-        /* --- HISTORY --- */
         .history-section { margin-top: 80px; margin-bottom: 40px; background: rgba(0,0,0,0.4); border-radius: 20px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); }
-        h3 { border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; color: #fff; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin-top: 0; }
+        h3 { border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; color: #fff; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; margin-top: 0; }
         .history-table { width: 100%; font-size: 12px; color: #ddd; border-collapse: collapse; }
         .history-table th { text-align: left; color: var(--main); padding: 10px 5px; font-size: 10px; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; }
         .history-table td { padding: 15px 5px; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .tx-link { color: var(--main); font-weight: bold; }
 
-        /* --- FOOTER --- */
         footer { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 40px; text-align: center; color: #666; font-size: 12px; }
         .socials { display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; }
         .socials a { color: #fff; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; }
@@ -166,7 +158,6 @@
 <body>
 
 <div class="bg-overlay"></div>
-
 <div class="announcement" id="announcement"></div>
 
 <div class="container">
@@ -196,37 +187,30 @@
                 <span>7d Cycle</span>
             </div>
 
-            <div class="timer-block">
-                <div class="timer" id="timer">--:--:--:--</div>
-                <div class="updated-ago" id="updated-ago">SYNCING...</div>
-            </div>
+            <div class="timer" id="timer">--:--:--:--</div>
+            <div class="updated-ago" id="updated-ago">SYNCING...</div>
 
             <a href="https://t.me/tw10x_official_bot" class="btn-primary" id="btn-primary"></a>
             <div class="cta-hint" id="cta-hint"></div>
-            <a href="#steps" class="btn-secondary" id="btn-secondary"></a>
         </div>
     </div>
 
-    <!-- Steps -->
     <div class="how-works" id="steps"></div>
 
-    <!-- Referral -->
     <div class="referral-block">
         <div class="ref-badge">GROWTH</div>
-        <div class="ref-title"><span style="font-size:20px">💎</span> <span id="ref-title"></span></div>
+        <div class="ref-title" id="ref-title"></div>
         <div class="ref-sim" id="ref-sim"></div>
         <br>
         <a href="https://t.me/tw10x_official_bot" class="btn-ref" id="ref-btn"></a>
     </div>
 
-    <!-- Sponsor -->
     <div class="sponsor-block">
         <div class="slot-badge" id="slot-badge"></div>
         <div class="sponsor-text" id="sponsor-text"></div>
         <a href="https://t.me/tw10x" target="_blank" class="sponsor-cta" id="sponsor-cta"></a>
     </div>
 
-    <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-val" id="jackpot">0</div>
@@ -281,20 +265,18 @@
 </div>
 
 <script>
-    // --- CONSTANTS ---
     const API_OVERVIEW = '/api/public/overview';
     const API_ROUNDS = '/api/public/rounds';
     const ROUND_DURATION = 7 * 24 * 3600; 
 
-    // FULL CONTENT OBJECT (Restored from v3.3)
+    // 🔥 FIX: CORRECT QUOTES AND SYNTAX
     const CONTENT = {
         en: {
-            announcement: "🟢 PROTOCOL IS LIVE. PARTICIPATION OPEN.",
+            announcement: "🟢 ROUND IS LIVE. PARTICIPATION WINDOW OPEN.",
             h1: "Automated On-Chain Protocol",
             subtitle: "Fixed Rules • Smart Contract • Public Verification",
             pool_label: "CURRENT ROUND POOL",
             btn_primary: "LAUNCH APP 🚀",
-            btn_secondary: "HOW IT WORKS ↓",
             cta_hint: "You influence the pool size: more participants = bigger pool.",
             prog_text: "ROUND PROGRESS",
             updated: "UPDATED",
@@ -312,7 +294,7 @@
             sponsor_cta: "BECOME A SPONSOR",
             stats: {
                 jackpot: { lbl: "JACKPOT", info: "Accumulating pool of the active round. Grows with every participation." },
-                holder: { lbl: "HOLDERS", info: "Community participation pool. Used for ecosystem support." },
+                holder: { lbl: "HOLDER DROP", info: "Community participation pool. Used for ecosystem support." },
                 treasury: { lbl: "TREASURY", info: "Protocol operational fund. Infrastructure & growth." },
                 dev: { lbl: "DEV FUND", info: "Development & security fund. Audits & updates." }
             },
@@ -321,12 +303,11 @@
             empty_history: "ON-CHAIN DATA WILL APPEAR HERE AFTER ROUND COMPLETION"
         },
         ru: {
-            announcement: "🟢 РАУНД АКТИВЕН. УЧАСТИЕ ОТКРЫТО.",
+            announcement: "🟢 РАУНД АКТИВЕН. ОКНО УЧАСТИЯ ОТКРЫТО.",
             h1: "Автоматизированный On-Chain Протокол",
             subtitle: "Фиксированные правила • Смарт-контракт • Публичная проверяемость",
             pool_label: "ПУЛ ТЕКУЩЕГО РАУНДА",
             btn_primary: "ЗАПУСТИТЬ APP 🚀",
-            btn_secondary: "КАК ЭТО РАБОТАЕТ ↓",
             cta_hint: "Ты напрямую влияешь на размер пула. Больше участников = больше пул.",
             prog_text: "ПРОГРЕСС РАУНДА",
             updated: "ОБНОВЛЕНО",
@@ -337,16 +318,16 @@
                 {icon: "⚙️", text: "3. Авто-расчет"}
             ],
             ref_title: "РЕФЕРАЛЬНОЕ УЧАСТИЕ",
-            ref_sim: "1 УЧАСТИЕ ПО ССЫЛКЕ = +10% НАГРАДА",
+            ref_sim: "ПРИ КАЖДОЙ ПОКУПКЕ БИЛЕТА ВАШИМ РЕФЕРАЛОМ, СМАРТ КОНТРАКТ TW10X АВТОМАТИЧЕСКИ ОТПРАВЛЯЕТ НА ВАШ КОШЕЛЕК 10%. МОМЕНТАЛЬНО ПОЛУЧАЙ ВЫПЛАТЫ В TON НА СВОЙ КОШЕЛЕК СО СВОЕЙ РЕФЕРАЛЬНОЙ СЕТИ. РАЗВИВАЙ ПРОЕКТ ВМЕСТЕ С НАМИ.",
             ref_btn: "ПОЛУЧИТЬ ССЫЛКУ",
             slot_available: "СЛОТ СВОБОДЕН",
             sponsor_text: "У текущего раунда нет спонсора. Хотите поддержать протокол?",
             sponsor_cta: "СТАТЬ СПОНСОРОМ",
             stats: {
-                jackpot: { lbl: "ДЖЕКПОТ", info: "Накопительный фонд текущего раунда. Растет с каждым участием." },
-                holder: { lbl: "ХОЛДЕРЫ", info: "Фонд поддержки сообщества и долгосрочных участников." },
-                treasury: { lbl: "КАЗНА", info: "Операционный фонд. Инфраструктура и развитие." },
-                dev: { lbl: "DEV FUND", info: "Фонд поддержки разработки и безопасности." }
+                jackpot: { lbl: "JECKPOT", info: "10% с каждого билета попадает в накопительный фонд ДЖЕКПОТ. Увеличивается в течении месяца. Определение победителя каждый месяц." },
+                holder: { lbl: "HOLDER DROP", info: "10% с каждого билета попадает в накопительный фонд HOLDER POOL. Фонд поддержки сообщества и долгосрочных участников. Распределяется среди активных участников." },
+                treasury: { lbl: "TREASURY", info: "10% с каждого билета попадает в Операционный фонд. Инфраструктура и развитие." },
+                dev: { lbl: "DEV FUND", info: "10% с каждого билета попадает в Фонд поддержки разработки и безопасности." }
             },
             history_title: "ПОСЛЕДНИЕ РАУНДЫ",
             th: ["РАУНД", "ДАТА", "УЧАСТНИК", "СУММА", "PROOF"],
@@ -358,13 +339,11 @@
     let lastUpdateTs = Date.now();
     let timerInterval = null;
 
-    // --- ANIMATION HELPERS ---
     function animateValue(id, end, duration) {
         const obj = document.getElementById(id);
         if (!obj) return;
         const start = parseFloat(obj.innerText.replace(/,/g, '')) || 0;
         if (Math.abs(start - end) < 0.1) { obj.innerText = end.toLocaleString('en-US'); return; }
-        
         let startTimestamp = null;
         const step = (timestamp) => {
             if (!startTimestamp) startTimestamp = timestamp;
@@ -380,10 +359,11 @@
     function animateFloat(id, end, duration) {
         const obj = document.getElementById(id);
         if (!obj) return;
+        const current = parseFloat(obj.innerText.replace(/,/g, '')) || 0;
+        if (Math.abs(current - end) < 0.1) { obj.innerText = end.toLocaleString('en-US', {maximumFractionDigits:1}); return; }
         obj.innerText = end.toLocaleString('en-US', {maximumFractionDigits:1});
     }
 
-    // --- MAIN LOGIC ---
     function setLang(lang) {
         currentLang = lang;
         document.getElementById('btn-en').className = lang === 'en' ? 'lang-btn active' : 'lang-btn';
@@ -398,7 +378,6 @@
         document.getElementById('subtitle').innerText = c.subtitle;
         document.getElementById('pool-label').innerText = c.pool_label;
         document.getElementById('btn-primary').innerText = c.btn_primary;
-        document.getElementById('btn-secondary').innerText = c.btn_secondary;
         document.getElementById('cta-hint').innerText = c.cta_hint;
         
         document.getElementById('steps').innerHTML = c.steps.map(s => `

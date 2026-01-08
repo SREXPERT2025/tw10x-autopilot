@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>TW10X Game</title>
 
-<!-- RELEASE v6.0 -->
+<!-- RELEASE v9.0 (Pure Address Payload) -->
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 
@@ -151,6 +151,17 @@ color: var(--main-color);
 box-shadow: none;
 margin-top: 12px;
 }
+.btn-reset {
+background: transparent;
+border: 1px solid var(--danger);
+color: var(--danger);
+font-size: 10px;
+padding: 8px;
+margin-top: 15px;
+width: 100%;
+border-radius: 8px;
+opacity: 0.7;
+}
 .btn-mini {
 display: inline-flex;
 align-items: center;
@@ -247,6 +258,17 @@ color: var(--success);
 min-height: 20px;
 font-weight: 500;
 word-break: break-word;
+}
+.ref-badge {
+    font-size: 11px;
+    color: var(--success);
+    background: rgba(52, 199, 89, 0.1);
+    padding: 6px 12px;
+    border-radius: 8px;
+    display: none; /* Hidden by default */
+    margin-bottom: 15px;
+    text-align: center;
+    border: 1px solid rgba(52, 199, 89, 0.3);
 }
 
 /* UX: Rules Link */
@@ -456,6 +478,8 @@ CURRENT POOL
 
 <div class="card">
 <div id="ton-connect"></div>
+<!-- 🔥 REF BADGE -->
+<div id="ref-badge" class="ref-badge">✅ REFERRAL ACTIVE</div>
 <div class="stat-row">
 <span>Entry:</span><span class="stat-val">5 TON</span>
 </div>
@@ -463,6 +487,9 @@ CURRENT POOL
 
 <button id="buyBtn" class="btn" disabled>⏳ Loading...</button>
 <div id="status" class="status"></div>
+
+<!-- 🔥 SAFETY BUTTON -->
+<button onclick="hardResetWallet()" class="btn btn-reset">⚠️ HARD RESET WALLET</button>
 
 <!-- RULES trigger -->
 <div class="legal-link" onclick="openRulesModal()">📜 Rules & Disclaimer</div>
@@ -590,7 +617,7 @@ CURRENT POOL
 
 <script>
 // ==========================================
-// 🔒 PRODUCTION LOGIC (v6.0)
+// 🔒 PRODUCTION LOGIC (v9.0 PURE ADDRESS)
 // ==========================================
 const CONTRACT_ADDRESS = "EQCOaDls2_jUvqMOVdShynh4tbjZTwczd1Fj0P0PZpBhgYxd";
 const TICKET_PRICE = "5000000000";
@@ -602,6 +629,8 @@ tg.expand();
 const userId = tg.initDataUnsafe?.user?.id;
 let globalTotalTickets = 0;
 let myTicketsCount = 0;
+let userWallet = null;
+let referrerAddress = null; // Store ref address
 
 function sendAnalytics(event, extra = {}) {
     try {
@@ -634,7 +663,10 @@ manifestUrl: 'https://tw10x.app/tonconnect-manifest.json',
 buttonRootId: 'ton-connect'
 });
 
-let userWallet = null;
+async function hardResetWallet() {
+    try { await tonConnectUI.disconnect(); } catch(e){}
+    window.location.reload();
+}
 
 window.onload = () => {
 document.getElementById('buyBtn').innerText = "🎟 ENTER GAME (5 TON)";
@@ -650,6 +682,7 @@ if (wallet) {
 userWallet = wallet.account.address;
 sendAnalytics('connect_wallet');
 document.getElementById('buyBtn').disabled = false;
+checkReferral(); // 🔥 TRIGGER CHECK
 if (userId) {
 fetch('/api/save_wallet', {
 method: 'POST',
@@ -661,6 +694,88 @@ body: JSON.stringify({ user_id: userId, wallet: userWallet })
 userWallet = null;
 document.getElementById('buyBtn').disabled = true;
 }
+});
+
+// 🔥 LAZY LOAD TONWEB (Only if Ref exists)
+function loadTonWeb() {
+    if (window.TonWeb) return;
+    const script = document.createElement('script');
+    script.src = "https://unpkg.com/tonweb@0.0.66/dist/tonweb.js";
+    document.head.appendChild(script);
+}
+
+// 🔥 CHECK REFS
+async function checkReferral() {
+    if (!userId) return;
+    try {
+        let res = await fetch(`/api/referrer?user_id=${userId}`);
+        let data = await res.json();
+        
+        if (data.ref_wallet && data.ref_wallet !== userWallet) {
+            referrerAddress = data.ref_wallet;
+            const badge = document.getElementById('ref-badge');
+            badge.style.display = 'block';
+            badge.innerText = `✅ REF: ${data.ref_wallet.slice(0,4)}...${data.ref_wallet.slice(-4)}`;
+            
+            // Start loading library for payload generation
+            loadTonWeb();
+        }
+    } catch(e) {}
+}
+
+// 🔥 BUILD PAYLOAD (PURE ADDRESS) v9.0
+async function createPayload() {
+    if (!referrerAddress || !window.TonWeb) return null;
+
+    try {
+        const TonWeb = window.TonWeb;
+        const cell = new TonWeb.boc.Cell();
+        
+        // ❌ УБИРАЕМ OpCode и QueryID
+        // cell.bits.writeUint(OP_CODE_REF, 32); 
+        // cell.bits.writeUint(0, 64);
+        
+        // ✅ ПИШЕМ ТОЛЬКО АДРЕС
+        const addr = new TonWeb.utils.Address(referrerAddress);
+        cell.bits.writeAddress(addr);
+        
+        const bytes = await cell.toBoc();
+        return TonWeb.utils.bytesToBase64(bytes);
+    } catch (e) {
+        console.error("Payload failed:", e);
+        return null;
+    }
+}
+
+document.getElementById('buyBtn').addEventListener('click', async () => {
+    sendAnalytics('enter_game_click');
+    if (!userWallet) return;
+    document.getElementById('status').innerText = "⏳ Preparing...";
+    
+    // Try build payload (if ref exists)
+    let payload = await createPayload();
+    if (payload) {
+        document.getElementById('status').innerText = "⏳ Building Ref TX...";
+    }
+
+    try {
+        const txRequest = {
+            validUntil: Math.floor(Date.now() / 1000) + 600, 
+            messages: [{ 
+                address: CONTRACT_ADDRESS, 
+                amount: TICKET_PRICE,
+                payload: payload // Will be null if no ref or error
+            }]
+        };
+        await tonConnectUI.sendTransaction(txRequest);
+        sendAnalytics('tx_success');
+        document.getElementById('status').innerText = "🚀 Success!";
+        setTimeout(loadGlobalStats, 5000);
+    } catch (e) {
+        console.error(e);
+        sendAnalytics('tx_cancel');
+        document.getElementById('status').innerText = "Cancelled / Error";
+    }
 });
 
 let roundEndTime = 0;
@@ -716,26 +831,6 @@ document.getElementById('ref-count-display').innerText = data.invited;
 document.getElementById('ref-earned-display').innerText = data.earned.toFixed(1) + " TON";
 } catch (e) {}
 }
-
-document.getElementById('buyBtn').addEventListener('click', async () => {
-sendAnalytics('enter_game_click');
-if (!userWallet) return;
-document.getElementById('status').innerText = "⏳ Preparing...";
-try {
-const txRequest = {
-validUntil: Math.floor(Date.now() / 1000) + 600, 
-messages: [{ address: CONTRACT_ADDRESS, amount: TICKET_PRICE }]
-};
-await tonConnectUI.sendTransaction(txRequest);
-sendAnalytics('tx_success');
-document.getElementById('status').innerText = "🚀 Success!";
-setTimeout(loadGlobalStats, 5000);
-} catch (e) {
-console.error(e);
-sendAnalytics('tx_cancel');
-document.getElementById('status').innerText = "Cancelled / Error";
-}
-});
 
 async function loadTickets() {
 const list = document.getElementById('tickets-list');
