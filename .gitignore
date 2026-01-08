@@ -1,20 +1,9 @@
-# Python
-__pycache__/
-*.pyc
-
-# Virtualenv
-venv/
+node_modules/
 .env
-
-# Database
-*.db
-
-# OS
+.env.*
 .DS_Store
-
-# Logs
 *.log
-
-# python cache
+venv/
 __pycache__/
 *.pyc
+lottery.db

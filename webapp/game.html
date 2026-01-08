@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>TW10X Game</title>
 
+<!-- RELEASE v6.0 -->
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
-<script src="https://unpkg.com/tonweb@0.0.66/dist/tonweb.js"></script>
 
 <style>
-/* 🎨 THEME & RESET (v2.6 baseline) */
+/* 🎨 THEME & RESET */
 :root {
 --main-color: #0098EA;
 --accent-grad: linear-gradient(135deg, #0098EA 0%, #006499 100%);
@@ -249,13 +249,13 @@ font-weight: 500;
 word-break: break-word;
 }
 
-/* ✅ TASK 2.1: IMPROVED UX FOR RULES LINK */
+/* UX: Rules Link */
 .legal-link {
 text-align: center;
-margin-top: 30px; /* Increased from 24px */
-font-size: 14px; /* Increased from 12px */
-color: #4facfe; /* More visible color (was var(--text-sec)) */
-font-weight: 700; /* Bold */
+margin-top: 30px; 
+font-size: 14px; 
+color: #4facfe; 
+font-weight: 700; 
 cursor: pointer;
 opacity: 0.9;
 user-select: none;
@@ -263,7 +263,7 @@ transition: opacity 0.2s;
 }
 .legal-link:active { opacity: 0.7; }
 
-/* ✅ RULES MODAL v2.7 (safe) */
+/* ✅ RULES MODAL */
 .modal {
 display: none;
 position: fixed;
@@ -442,11 +442,9 @@ line-height: 1.45;
 CURRENT POOL
 </div>
 
-<!-- IMPORTANT: keep id EXACTLY -->
 <div id="jackpot-display" class="big-val skeleton">Loading...</div>
 
 <div style="margin-top:10px;">
-<!-- IMPORTANT: keep id EXACTLY -->
 <span id="timer-display" class="timer skeleton">--:--:--</span>
 </div>
 
@@ -466,7 +464,7 @@ CURRENT POOL
 <button id="buyBtn" class="btn" disabled>⏳ Loading...</button>
 <div id="status" class="status"></div>
 
-<!-- RULES trigger (modal) -->
+<!-- RULES trigger -->
 <div class="legal-link" onclick="openRulesModal()">📜 Rules & Disclaimer</div>
 </div>
 
@@ -505,14 +503,14 @@ CURRENT POOL
 </div>
 </div>
 
-<!-- Bottom nav (MUST stay 3 items) -->
+<!-- Bottom nav -->
 <div class="bottom-nav">
 <div class="nav-item active" onclick="switchTab('game', this)"><span class="nav-icon">🎰</span>Game</div>
 <div class="nav-item" onclick="switchTab('tickets', this)"><span class="nav-icon">🎟</span>Tickets</div>
 <div class="nav-item" onclick="switchTab('refs', this)"><span class="nav-icon">🤝</span>Ref</div>
 </div>
 
-<!-- RULES MODAL v2.7 -->
+<!-- RULES MODAL -->
 <div id="rulesModal" class="modal" aria-hidden="true">
 <div class="modal-content" role="dialog" aria-modal="true" aria-label="Rules">
 <div class="modal-head">
@@ -530,57 +528,29 @@ CURRENT POOL
 <div id="rules-ru">
 <div class="rules-card">
 <div class="rules-h">Что такое TW10X</div>
-<div class="rules-p">
-TW10X — это <b>on-chain игра</b> в блокчейне TON. Участие фиксируется транзакцией в смарт-контракт.
-<br /><br />
-Важно: это <b>игра, не инвестиция</b>. Результат не гарантирован.
+<div class="rules-p">TW10X — это <b>on-chain игра</b> в блокчейне TON. Участие фиксируется транзакцией в смарт-контракт.</div>
 </div>
-</div>
-
 <div class="rules-card">
 <div class="rules-h">Как работает</div>
 <ul class="rules-ul">
 <li>Подключаете кошелёк через TonConnect.</li>
 <li>Нажимаете <b>Enter Game (5 TON)</b> и отправляете 5 TON в адрес контракта.</li>
-<li>Участие записывается в блокчейн (публично проверяется в explorer).</li>
+<li>Участие записывается в блокчейн.</li>
 <li>По окончании раунда победитель определяется логикой смарт-контракта.</li>
 </ul>
-<div class="muted" style="margin-top:10px;">
-Текущий банк в приложении — это баланс адреса контракта (данные из сети TON).
 </div>
-</div>
-
 <div class="rules-card">
-<div class="rules-h">Прозрачность и проверка</div>
-<div class="rules-p">
-Любой может проверить банк и транзакции в обозревателе блокчейна.
-</div>
-
+<div class="rules-h">Прозрачность</div>
 <div class="rules-kv">
 <div class="kv">
 <div class="k">Адрес контракта</div>
 <div class="v" id="contractAddressTextRu">—</div>
 </div>
 </div>
-
 <div class="inline-actions">
-<button class="btn-mini" onclick="copyContractAddress()">📋 Скопировать адрес</button>
-<button class="btn-mini" onclick="openContractExplorer()">🔎 Открыть в Explorer</button>
+<button class="btn-mini" onclick="copyContractAddress()">📋 Скопировать</button>
+<button class="btn-mini" onclick="openContractExplorer()">🔎 Explorer</button>
 </div>
-
-<div class="muted" style="margin-top:10px;">
-Если цифры не обновляются: проверь интернет/впн и попробуй перезапустить Mini App.
-</div>
-</div>
-
-<div class="rules-card">
-<div class="rules-h">Дисклеймер</div>
-<ul class="rules-ul">
-<li>Игра добровольная. Участник действует на свой риск.</li>
-<li>Нет гарантии выигрыша.</li>
-<li>Все транзакции публичны в блокчейне TON.</li>
-<li>Отправка средств в контракт является действием пользователя. Возврат не гарантируется.</li>
-</ul>
 </div>
 </div>
 
@@ -588,58 +558,29 @@ TW10X — это <b>on-chain игра</b> в блокчейне TON. Участ�
 <div id="rules-en" class="hidden">
 <div class="rules-card">
 <div class="rules-h">What is TW10X</div>
-<div class="rules-p">
-TW10X is a <b>fair on-chain game</b> on the TON blockchain. Your entry is recorded by an on-chain transaction
-sent to the smart contract.
-<br /><br />
-Important: this is a <b>game, not an investment</b>. No outcome is guaranteed.
+<div class="rules-p">TW10X is a <b>fair on-chain game</b> on the TON blockchain. Your entry is recorded by an on-chain transaction.</div>
 </div>
-</div>
-
 <div class="rules-card">
 <div class="rules-h">How it works</div>
 <ul class="rules-ul">
 <li>Connect your wallet via TonConnect.</li>
 <li>Tap <b>Enter Game (5 TON)</b> and send 5 TON to the contract address.</li>
-<li>Your entry is recorded on-chain (publicly verifiable in explorers).</li>
-<li>When the round ends, the winner is selected by the smart contract logic.</li>
+<li>Your entry is recorded on-chain.</li>
+<li>Winner is selected by smart contract logic when round ends.</li>
 </ul>
-<div class="muted" style="margin-top:10px;">
-The “Current Pool” shown in the app reflects the on-chain contract balance.
 </div>
-</div>
-
 <div class="rules-card">
-<div class="rules-h">Transparency & verification</div>
-<div class="rules-p">
-Anyone can verify the pool and transactions in TON explorers.
-</div>
-
+<div class="rules-h">Transparency</div>
 <div class="rules-kv">
 <div class="kv">
 <div class="k">Contract address</div>
 <div class="v" id="contractAddressTextEn">—</div>
 </div>
 </div>
-
 <div class="inline-actions">
-<button class="btn-mini" onclick="copyContractAddress()">📋 Copy address</button>
-<button class="btn-mini" onclick="openContractExplorer()">🔎 Open Explorer</button>
+<button class="btn-mini" onclick="copyContractAddress()">📋 Copy</button>
+<button class="btn-mini" onclick="openContractExplorer()">🔎 Explorer</button>
 </div>
-
-<div class="muted" style="margin-top:10px;">
-If numbers do not update, check your connection and reopen the Mini App.
-</div>
-</div>
-
-<div class="rules-card">
-<div class="rules-h">Disclaimer</div>
-<ul class="rules-ul">
-<li>Participation is voluntary. You act at your own risk.</li>
-<li>No guaranteed outcome.</li>
-<li>All transactions are public on TON.</li>
-<li>Funds are sent by the user. Refund is not guaranteed.</li>
-</ul>
 </div>
 </div>
 
@@ -649,7 +590,7 @@ If numbers do not update, check your connection and reopen the Mini App.
 
 <script>
 // ==========================================
-// 🔒 JS LOGIC (v2.6 base; keep ids intact)
+// 🔒 PRODUCTION LOGIC (v6.0)
 // ==========================================
 const CONTRACT_ADDRESS = "EQCOaDls2_jUvqMOVdShynh4tbjZTwczd1Fj0P0PZpBhgYxd";
 const TICKET_PRICE = "5000000000";
@@ -662,7 +603,6 @@ const userId = tg.initDataUnsafe?.user?.id;
 let globalTotalTickets = 0;
 let myTicketsCount = 0;
 
-// ✅ TASK 1.1: ANALYTICS FUNCTION
 function sendAnalytics(event, extra = {}) {
     try {
         fetch('/api/analytics', {
@@ -676,16 +616,11 @@ function sendAnalytics(event, extra = {}) {
                 extra: extra
             })
         });
-    } catch (e) {
-        // Safe fail, do not block main thread
-    }
+    } catch (e) {}
 }
 
-// --- Tabs ---
 function switchTab(tabName, el) {
-// ✅ TASK 1.2: ANALYTICS TRIGGER
 sendAnalytics('switch_tab', { tab: tabName });
-
 document.querySelectorAll('.content').forEach(d => d.classList.add('hidden'));
 document.getElementById('tab-' + tabName).classList.remove('hidden');
 document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
@@ -694,7 +629,6 @@ if (tabName === 'tickets') loadTickets();
 if (tabName === 'refs') { loadRefInfo(); loadRefStats(); }
 }
 
-// --- TonConnect ---
 const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
 manifestUrl: 'https://tw10x.app/tonconnect-manifest.json',
 buttonRootId: 'ton-connect'
@@ -703,34 +637,19 @@ buttonRootId: 'ton-connect'
 let userWallet = null;
 
 window.onload = () => {
-// Set static texts
-if (window.TonWeb) {
 document.getElementById('buyBtn').innerText = "🎟 ENTER GAME (5 TON)";
-} else {
-document.getElementById('buyBtn').innerText = "🎟 ENTER GAME (5 TON)";
-}
-
-// Fill contract address in Rules
 syncContractAddressInRules();
-
 loadGlobalStats();
 loadRefInfo();
-
-// timer loop
 setInterval(updateTimer, 1000);
-
-// periodic refresh (helps when app is open long)
 setInterval(loadGlobalStats, 30000);
 };
 
 tonConnectUI.onStatusChange(wallet => {
 if (wallet) {
 userWallet = wallet.account.address;
-// ✅ TASK 1.2: ANALYTICS TRIGGER
 sendAnalytics('connect_wallet');
-
 document.getElementById('buyBtn').disabled = false;
-
 if (userId) {
 fetch('/api/save_wallet', {
 method: 'POST',
@@ -738,36 +657,28 @@ headers: {'Content-Type': 'application/json'},
 body: JSON.stringify({ user_id: userId, wallet: userWallet })
 }).catch(console.error);
 }
-
 } else {
 userWallet = null;
 document.getElementById('buyBtn').disabled = true;
 }
 });
 
-// --- Stats ---
 let roundEndTime = 0;
 
 async function loadGlobalStats() {
 try {
 const res = await fetch('/api/global_stats', { cache: "no-store" });
 const data = await res.json();
-
 const jackpotEl = document.getElementById('jackpot-display');
 jackpotEl.innerText = data.jackpot.toFixed(1) + " TON";
 jackpotEl.classList.remove('skeleton');
-
 roundEndTime = data.round_end;
-
 const timerEl = document.getElementById('timer-display');
 timerEl.classList.remove('skeleton');
-
 document.getElementById('total-users-display').innerText = "Players: " + data.total_users;
 document.getElementById('total-tickets-display').innerText = "Tickets: " + data.total_tickets;
-
 globalTotalTickets = data.total_tickets;
 } catch (e) {
-// Do not break UI; keep skeleton, but show minimal fallback
 console.error(e);
 const jackpotEl = document.getElementById('jackpot-display');
 if (jackpotEl && jackpotEl.classList.contains('skeleton')) {
@@ -780,27 +691,22 @@ function updateTimer() {
 if (!roundEndTime) return;
 const now = Math.floor(Date.now() / 1000);
 const diff = roundEndTime - now;
-
 const el = document.getElementById('timer-display');
 if (!el) return;
-
 if (diff <= 0) {
 el.innerText = "ROUND ENDING...";
 return;
 }
-
 const days = Math.floor(diff / 86400);
 const hours = Math.floor((diff % 86400) / 3600);
 const minutes = Math.floor((diff % 3600) / 60);
 const seconds = diff % 60;
-
 let str = "";
 if (days > 0) str += days + "d ";
 str += [hours, minutes, seconds].map(v => v < 10 ? "0" + v : v).join(":");
 el.innerText = str;
 }
 
-// --- Ref stats ---
 async function loadRefStats() {
 if (!userId) return;
 try {
@@ -808,55 +714,24 @@ const res = await fetch(`/api/ref_stats?user_id=${userId}`, { cache: "no-store" 
 const data = await res.json();
 document.getElementById('ref-count-display').innerText = data.invited;
 document.getElementById('ref-earned-display').innerText = data.earned.toFixed(1) + " TON";
-} catch (e) {
-console.error(e);
-}
+} catch (e) {}
 }
 
-// --- Transactions ---
 document.getElementById('buyBtn').addEventListener('click', async () => {
-// ✅ TASK 1.2: ANALYTICS TRIGGER
 sendAnalytics('enter_game_click');
-
 if (!userWallet) return;
-
 document.getElementById('status').innerText = "⏳ Preparing...";
 try {
-let refAddrStr = null;
-
-if (userId) {
-try {
-const res = await fetch(`/api/referrer?user_id=${userId}`, { cache: "no-store" });
-const data = await res.json();
-if (data.ref_wallet) refAddrStr = data.ref_wallet;
-} catch (e) {}
-}
-
-let payload = null;
-if (refAddrStr) {
-try {
-const cell = new TonWeb.boc.Cell();
-const refAddress = new TonWeb.utils.Address(refAddrStr);
-cell.bits.writeAddress(refAddress);
-payload = TonWeb.utils.bytesToBase64(await cell.toBoc());
-} catch (e) {}
-}
-
 const txRequest = {
-validUntil: Math.floor(Date.now() / 1000) + 600,
-messages: [{ address: CONTRACT_ADDRESS, amount: TICKET_PRICE, payload: payload }]
+validUntil: Math.floor(Date.now() / 1000) + 600, 
+messages: [{ address: CONTRACT_ADDRESS, amount: TICKET_PRICE }]
 };
-
 await tonConnectUI.sendTransaction(txRequest);
-
-// ✅ TASK 1.2: ANALYTICS TRIGGER
 sendAnalytics('tx_success');
-
 document.getElementById('status').innerText = "🚀 Success!";
 setTimeout(loadGlobalStats, 5000);
 } catch (e) {
 console.error(e);
-// ✅ TASK 1.2: ANALYTICS TRIGGER
 sendAnalytics('tx_cancel');
 document.getElementById('status').innerText = "Cancelled / Error";
 }
@@ -865,22 +740,18 @@ document.getElementById('status').innerText = "Cancelled / Error";
 async function loadTickets() {
 const list = document.getElementById('tickets-list');
 if (!list) return;
-
 if (!userWallet) {
 list.innerHTML = "<p style='text-align:center; opacity:0.7;'>Connect wallet first</p>";
 return;
 }
-
 try {
 const res = await fetch(`/api/user?address=${userWallet}`, { cache: "no-store" });
 const data = await res.json();
-
 if (!data.history || data.history.length === 0) {
 list.innerHTML = "<p style='text-align:center; opacity:0.7;'>No entries yet</p>";
 myTicketsCount = 0;
 } else {
 myTicketsCount = data.history.length;
-
 let html = "";
 data.history.forEach(t => {
 html += `<div class="ticket-item">
@@ -890,7 +761,6 @@ html += `<div class="ticket-item">
 });
 list.innerHTML = html;
 }
-
 if (globalTotalTickets > 0) {
 const chance = (myTicketsCount / globalTotalTickets) * 100;
 document.getElementById('win-chance-display').innerText = chance.toFixed(2) + "%";
@@ -919,21 +789,14 @@ tg.showPopup({ message: "✅ Copied", buttons: [{ type: "ok" }] });
 }).catch(() => {});
 }
 
-// ==========================================
-// ✅ Rules Modal v2.7 (safe)
-// ==========================================
 let rulesLang = 'ru';
 
 function openRulesModal() {
-// ✅ TASK 1.2: ANALYTICS TRIGGER
 sendAnalytics('open_rules');
-
 const m = document.getElementById('rulesModal');
 if (!m) return;
 m.style.display = "block";
 m.setAttribute('aria-hidden', 'false');
-// default language: RU (or auto by Telegram)
-// if Telegram language is not Russian, default to EN
 try {
 const lang = (tg?.initDataUnsafe?.user?.language_code || '').toLowerCase();
 if (lang && lang !== 'ru' && lang !== 'ru-ru') setRulesLang('en');
@@ -950,7 +813,6 @@ m.style.display = "none";
 m.setAttribute('aria-hidden', 'true');
 }
 
-// close by clicking overlay
 window.addEventListener('click', (event) => {
 const m = document.getElementById('rulesModal');
 if (!m) return;
@@ -959,14 +821,11 @@ if (event.target === m) closeRulesModal();
 
 function setRulesLang(lang) {
 rulesLang = (lang === 'en') ? 'en' : 'ru';
-
 const ruBtn = document.getElementById('rulesLangRuBtn');
 const enBtn = document.getElementById('rulesLangEnBtn');
 const ru = document.getElementById('rules-ru');
 const en = document.getElementById('rules-en');
-
 if (!ruBtn || !enBtn || !ru || !en) return;
-
 if (rulesLang === 'ru') {
 ruBtn.classList.add('active');
 enBtn.classList.remove('active');
@@ -994,7 +853,6 @@ tg.showPopup({ message: rulesLang === 'en' ? "✅ Address copied" : "✅ Адр�
 }
 
 function openContractExplorer() {
-// Prefer tonviewer; safe and simple
 const url = `https://tonviewer.com/${CONTRACT_ADDRESS}`;
 try { tg.openLink(url); } catch (e) { window.open(url, "_blank"); }
 }
